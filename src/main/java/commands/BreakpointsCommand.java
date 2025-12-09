@@ -1,6 +1,7 @@
 package commands;
 
 import models.Breakpoint;
+import models.DebuggerState;
 
 import java.util.ArrayList;
 import java.util.Collections;

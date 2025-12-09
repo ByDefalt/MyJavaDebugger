@@ -1,6 +1,7 @@
 package commands;
 
 import models.CallStack;
+import models.DebuggerState;
 
 class StackCommand implements Command {
     @Override

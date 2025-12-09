@@ -5,6 +5,7 @@ import com.sun.jdi.ObjectReference;
 import com.sun.jdi.ReferenceType;
 import com.sun.jdi.Value;
 import models.DebugFrame;
+import models.DebuggerState;
 import models.Variable;
 
 import java.util.ArrayList;

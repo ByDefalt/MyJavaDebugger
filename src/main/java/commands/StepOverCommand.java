@@ -2,6 +2,7 @@ package commands;
 
 import com.sun.jdi.ThreadReference;
 import com.sun.jdi.request.StepRequest;
+import models.DebuggerState;
 
 class StepOverCommand implements Command {
     @Override

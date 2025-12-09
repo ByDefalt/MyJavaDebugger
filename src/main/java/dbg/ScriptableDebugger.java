@@ -242,19 +242,4 @@ public class ScriptableDebugger {
             System.err.println("Error reading VM output: " + e.getMessage());
         }
     }
-
-    public static void main(String[] args) {
-        if (args.length < 1) {
-            System.err.println("Usage: java ScriptableDebugger <DebuggedClassName>");
-            return;
-        }
-
-        try {
-            Class<?> debugClass = Class.forName(args[0]);
-            ScriptableDebugger debugger = new ScriptableDebugger();
-            debugger.attachTo(debugClass);
-        } catch (ClassNotFoundException e) {
-            System.err.println("Class not found: " + args[0]);
-        }
-    }
 }

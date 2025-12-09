@@ -2,6 +2,7 @@ package commands;
 
 import models.CallStack;
 import models.DebugFrame;
+import models.DebuggerState;
 
 class SenderCommand implements Command {
     @Override

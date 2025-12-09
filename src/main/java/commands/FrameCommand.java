@@ -1,6 +1,7 @@
 package commands;
 
 import models.DebugFrame;
+import models.DebuggerState;
 
 class FrameCommand implements Command {
     @Override

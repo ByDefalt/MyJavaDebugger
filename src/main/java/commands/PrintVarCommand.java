@@ -4,6 +4,7 @@ package commands;
 import com.sun.jdi.Field;
 import com.sun.jdi.ObjectReference;
 import com.sun.jdi.Value;
+import models.DebuggerState;
 import models.Variable;
 import models.DebugFrame;
 

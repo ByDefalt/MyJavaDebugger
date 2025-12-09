@@ -1,5 +1,6 @@
 package commands;
 
+import models.DebuggerState;
 import models.MethodInfo;
 
 class ArgumentsCommand implements Command {

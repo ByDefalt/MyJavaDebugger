@@ -4,6 +4,7 @@ package commands;
 import com.sun.jdi.Method;
 import com.sun.jdi.ReferenceType;
 import com.sun.jdi.request.MethodEntryRequest;
+import models.DebuggerState;
 
 class BreakBeforeMethodCallCommand implements Command {
     private String methodName;

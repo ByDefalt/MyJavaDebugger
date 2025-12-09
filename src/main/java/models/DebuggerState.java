@@ -1,11 +1,9 @@
-package commands;
+package models;
 
 import com.sun.jdi.IncompatibleThreadStateException;
 import com.sun.jdi.ThreadReference;
 import com.sun.jdi.VirtualMachine;
 import com.sun.jdi.request.MethodEntryRequest;
-import models.Breakpoint;
-import models.ExecutionContext;
 
 import java.util.HashMap;
 import java.util.Map;
