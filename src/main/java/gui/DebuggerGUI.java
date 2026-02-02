@@ -1,154 +1,166 @@
 package gui;
 
-import commands.*;
-import models.*;
-import com.sun.jdi.*;
-import com.sun.jdi.event.*;
+import com.sun.jdi.Location;
+import com.sun.jdi.ThreadReference;
+import gui.components.CallStackPanel;
+import gui.components.OutputPanel;
+import gui.components.SourceCodePanel;
+import gui.components.ToolbarPanel;
+import gui.components.VariablesPanel;
+import gui.theme.Theme;
+import gui.theme.ThemeManager;
+import models.DebugFrame;
+import models.DebuggerState;
+
 import javax.swing.*;
-import javax.swing.border.*;
-import javax.swing.tree.*;
 import java.awt.*;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.List;
 
+/**
+ * Interface graphique principale du debugger (SRP + Composition)
+ *
+ * Architecture :
+ * - Utilise des composants réutilisables (ToolbarPanel, SourceCodePanel, etc.)
+ * - Délègue les responsabilités via des interfaces (DebuggerController)
+ * - Thème configurable via ThemeManager
+ */
 public class DebuggerGUI extends JFrame {
-    private SourceCodePanel sourceCodePanel;
-    private JList<String> callStackList;
-    private JTree inspectorTree;
-    private JTextArea outputArea;
-    private JButton stepOverButton, stepIntoButton, continueButton, stopButton;
 
-    private DefaultListModel<String> callStackModel;
-    private DefaultTreeModel inspectorTreeModel;
-    private DefaultMutableTreeNode inspectorRoot;
+    // Composants UI
+    private final ToolbarPanel toolbar;
+    private final SourceCodePanel sourceCodePanel;
+    private final CallStackPanel callStackPanel;
+    private final VariablesPanel variablesPanel;
+    private final OutputPanel outputPanel;
 
+    // État
     private DebuggerState state;
     private String currentSourceFile = "";
-    private DebuggerCallback callback;
+    private DebuggerController controller;
 
-    public interface DebuggerCallback {
-        void executeCommand(Command command) throws Exception;
-        void placeBreakpoint(String file, int line) throws Exception;
-        void stop();
+    private final Theme theme;
+
+    /**
+     * Interface pour le contrôleur du debugger (DIP - Dependency Inversion)
+     */
+    public interface DebuggerController {
+        void onContinue() throws Exception;
+        void onStepOver() throws Exception;
+        void onStepInto() throws Exception;
+        void onStop();
+        void onBreakpointToggle(String file, int line) throws Exception;
     }
 
-    public DebuggerGUI() throws Exception {
+    public DebuggerGUI() {
         super("Java Debugger Pro");
-        try { UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName()); } catch (Exception ignored) {}
-        initComponents();
-        setSize(1280, 850);
+        this.theme = ThemeManager.getInstance().getTheme();
+
+        // Initialiser les composants
+        this.toolbar = new ToolbarPanel();
+        this.sourceCodePanel = new SourceCodePanel();
+        this.callStackPanel = new CallStackPanel();
+        this.variablesPanel = new VariablesPanel();
+        this.outputPanel = new OutputPanel();
+
+        initFrame();
+        initLayout();
+        initListeners();
+    }
+
+    private void initFrame() {
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception ignored) {}
+
+        setSize(1400, 900);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
     }
 
-    private void initComponents() throws Exception {
+    private void initLayout() {
         JPanel mainContainer = new JPanel(new BorderLayout(0, 0));
-        mainContainer.setBackground(new Color(37, 37, 38));
+        mainContainer.setBackground(theme.getBackgroundSecondary());
 
-        // ToolBar stylisée
-        JPanel toolBar = new JPanel(new FlowLayout(FlowLayout.LEFT, 15, 10));
-        toolBar.setBackground(new Color(45, 45, 48));
-        toolBar.setBorder(new MatteBorder(0, 0, 1, 0, new Color(60, 60, 60)));
-
-        stepIntoButton = createStyledButton("Step Into", new Color(0, 122, 204));
-        stepOverButton = createStyledButton("Step Over", new Color(0, 122, 204));
-        continueButton = createStyledButton("Continue", new Color(30, 150, 70));
-        stopButton = createStyledButton("Stop", new Color(200, 50, 50));
-
-        stepIntoButton.addActionListener(e -> { if(callback!=null) {
-            try {
-                callback.executeCommand(new StepCommand());
-            } catch (Exception ex) {
-                throw new RuntimeException(ex);
-            }
-        }
-        });
-        stepOverButton.addActionListener(e -> { if(callback!=null) {
-            try {
-                callback.executeCommand(new StepOverCommand());
-            } catch (Exception ex) {
-                throw new RuntimeException(ex);
-            }
-        }
-        });
-        continueButton.addActionListener(e -> { if(callback!=null) {
-            try {
-                callback.executeCommand(new ContinueCommand());
-            } catch (Exception ex) {
-                throw new RuntimeException(ex);
-            }
-        }
-        });
-        stopButton.addActionListener(e -> {
-            System.exit(0);
-        });
-
-        toolBar.add(continueButton);
-        toolBar.add(new JSeparator(JSeparator.VERTICAL));
-        toolBar.add(stepOverButton);
-        toolBar.add(stepIntoButton);
-        toolBar.add(Box.createHorizontalStrut(20));
-        toolBar.add(stopButton);
-
-        // Split Panels
-        sourceCodePanel = new SourceCodePanel();
-        sourceCodePanel.setBreakpointListener(line -> {
-            if (callback != null && !currentSourceFile.isEmpty()) callback.placeBreakpoint(currentSourceFile, line);
-        });
-
-        JSplitPane rightSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, createStackPanel(), createInspectorPanel());
-        rightSplit.setDividerLocation(300);
+        // Zone droite : Stack + Variables
+        JSplitPane rightSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
+                callStackPanel, variablesPanel);
+        rightSplit.setDividerLocation(250);
         rightSplit.setBorder(null);
+        rightSplit.setBackground(theme.getBackgroundSecondary());
 
-        JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, sourceCodePanel, rightSplit);
-        mainSplit.setDividerLocation(850);
+        // Zone principale : Code + Panneaux droits
+        JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
+                sourceCodePanel, rightSplit);
+        mainSplit.setDividerLocation(900);
         mainSplit.setBorder(null);
 
-        JSplitPane bottomSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT, mainSplit, createOutputPanel());
+        // Zone complète : Principal + Console
+        JSplitPane bottomSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
+                mainSplit, outputPanel);
         bottomSplit.setDividerLocation(600);
         bottomSplit.setBorder(null);
 
-        mainContainer.add(toolBar, BorderLayout.NORTH);
+        mainContainer.add(toolbar, BorderLayout.NORTH);
         mainContainer.add(bottomSplit, BorderLayout.CENTER);
+
         add(mainContainer);
     }
 
-    private JButton createStyledButton(String text, Color bg) {
-        JButton btn = new JButton(text);
-        btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        btn.setBackground(bg);
-        btn.setForeground(Color.WHITE);
-        btn.setFocusPainted(false);
-        btn.setBorder(BorderFactory.createEmptyBorder(6, 15, 6, 15));
-        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        return btn;
-    }
+    private void initListeners() {
+        // Toolbar
+        toolbar.setToolbarListener(new ToolbarPanel.ToolbarListener() {
+            @Override
+            public void onContinue() {
+                executeControllerAction(() -> controller.onContinue());
+            }
 
-    // Dans DebuggerGUI.java, modifiez createStackPanel()
-    private JPanel createStackPanel() {
-        callStackModel = new DefaultListModel<>();
-        callStackList = new JList<>(callStackModel);
-        callStackList.setBackground(new Color(30, 30, 30)); //
-        callStackList.setForeground(new Color(200, 200, 200)); //
+            @Override
+            public void onStepOver() {
+                executeControllerAction(() -> controller.onStepOver());
+            }
 
-        callStackList.setSelectionBackground(new Color(0, 122, 204, 150));
-        callStackList.setSelectionForeground(Color.WHITE);
+            @Override
+            public void onStepInto() {
+                executeControllerAction(() -> controller.onStepInto());
+            }
 
-        // AJOUT : Détection du clic sur un élément de la pile
-        callStackList.addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) { // Évite le double déclenchement
-                int selectedIndex = callStackList.getSelectedIndex();
-                if (selectedIndex != -1) {
-                    onStackFrameSelected(selectedIndex);
-                }
+            @Override
+            public void onStop() {
+                if (controller != null) controller.onStop();
             }
         });
 
-        return wrapInPanel(new JScrollPane(callStackList), "CALL STACK");
+        // Source code breakpoints
+        sourceCodePanel.setBreakpointListener(line -> {
+            if (controller != null && !currentSourceFile.isEmpty()) {
+                controller.onBreakpointToggle(currentSourceFile, line);
+            }
+        });
+
+        // Call stack navigation
+        callStackPanel.setCallStackListener(this::onStackFrameSelected);
     }
 
-    // Dans DebuggerGUI.java
+    private void executeControllerAction(ControllerAction action) {
+        if (controller != null) {
+            try {
+                action.execute();
+            } catch (Exception e) {
+                appendOutput("Error: " + e.getMessage() + "\n");
+            }
+        }
+    }
+
+    @FunctionalInterface
+    private interface ControllerAction {
+        void execute() throws Exception;
+    }
+
+    /**
+     * Gère la sélection d'un frame dans la pile d'appels
+     */
     private void onStackFrameSelected(int index) {
         if (state == null || state.getContext() == null) return;
 
@@ -157,11 +169,10 @@ public class DebuggerGUI extends JFrame {
             if (index < frames.size()) {
                 DebugFrame selectedFrame = frames.get(index);
 
-                // 1. Mettre à jour les variables pour ce frame spécifique
-                updateInspector(index);
+                // Mettre à jour les variables
+                variablesPanel.updateVariables(selectedFrame.getTemporaries());
 
-                // 2. Mettre à jour le code source
-                // Note: On suppose que DebugFrame contient la Location JDI
+                // Mettre à jour le code source
                 Location loc = selectedFrame.getLocation();
                 if (loc != null) {
                     currentSourceFile = loc.sourceName();
@@ -170,158 +181,93 @@ public class DebuggerGUI extends JFrame {
                 }
             }
         } catch (Exception e) {
-            appendOutput("Erreur de navigation dans la stack : " + e.getMessage() + "\n");
+            appendOutput("Error navigating stack: " + e.getMessage() + "\n");
         }
     }
 
-    private JPanel createInspectorPanel() {
-        inspectorRoot = new DefaultMutableTreeNode("Variables");
-        inspectorTreeModel = new DefaultTreeModel(inspectorRoot);
-        inspectorTree = new JTree(inspectorTreeModel);
-        inspectorTree.setBackground(new Color(30, 30, 30));
-        inspectorTree.setForeground(new Color(200, 200, 200));
+    // ========== API Publique ==========
 
-        // Dans createInspectorPanel()
-        inspectorTree.setCellRenderer(new DefaultTreeCellRenderer() {
-            @Override
-            public Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean exp, boolean leaf, int row, boolean hasFocus) {
-                super.getTreeCellRendererComponent(tree, value, sel, exp, leaf, row, hasFocus);
-                if (leaf) {
-                    setIcon(UIManager.getIcon("Tree.leafIcon"));
-                } else {
-                    setIcon(UIManager.getIcon("Tree.closedIcon"));
-                }
-                return this;
-            }
-        });
-        return wrapInPanel(new JScrollPane(inspectorTree), "VARIABLES");
+    public void setController(DebuggerController controller) {
+        this.controller = controller;
     }
 
-    private JPanel createOutputPanel() {
-        outputArea = new JTextArea();
-        outputArea.setEditable(false);
-        outputArea.setBackground(new Color(30, 30, 30));
-        outputArea.setForeground(new Color(150, 250, 150));
-        outputArea.setFont(new Font("Consolas", Font.PLAIN, 12));
-        return wrapInPanel(new JScrollPane(outputArea), "DEBUG CONSOLE");
-    }
-
-    private JPanel wrapInPanel(JComponent comp, String title) {
-        JPanel p = new JPanel(new BorderLayout());
-        p.setBackground(new Color(37, 37, 38));
-        TitledBorder border = BorderFactory.createTitledBorder(
-                BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(60, 60, 60)), title);
-        border.setTitleColor(new Color(150, 150, 150));
-        border.setTitleFont(new Font("Segoe UI", Font.BOLD, 10));
-        p.setBorder(border);
-        p.add(comp);
-        return p;
-    }
-
-    // Dans DebuggerGUI.java
+    /**
+     * Met à jour l'état complet du debugger
+     */
     public void updateDebuggerState(DebuggerState state, Location loc, ThreadReference thread) {
         this.state = state;
         if (loc != null) {
             try {
                 currentSourceFile = loc.sourceName();
                 loadSource(loc);
-                updateStack();
 
-                // Force la sélection du premier élément (index 0) par défaut
-                if (callStackModel.getSize() > 0) {
-                    callStackList.setSelectedIndex(0);
+                // Mettre à jour la pile
+                if (state.getContext() != null) {
+                    callStackPanel.updateStack(state.getContext().getCallStack().getFrames());
+                    callStackPanel.selectFrame(0);
                 }
 
-                updateInspector(0);
+                // Mettre à jour les variables du premier frame
+                if (state.getContext() != null && !state.getContext().getCallStack().getFrames().isEmpty()) {
+                    variablesPanel.updateVariables(
+                            state.getContext().getCallStack().getFrames().get(0).getTemporaries());
+                }
             } catch (Exception e) {
                 appendOutput("Error: " + e.getMessage() + "\n");
             }
         }
     }
 
+    /**
+     * Charge le code source depuis un fichier
+     */
     private void loadSource(Location loc) throws Exception {
-        String path = "src/main/java/dbg/" + loc.sourceName();
-        if (Files.exists(Paths.get(path))) {
-            List<String> lines = Files.readAllLines(Paths.get(path));
-            sourceCodePanel.setSourceLines(lines);
-            sourceCodePanel.setCurrentLine(loc.lineNumber());
-        }
-    }
+        String sourceName = loc.sourceName();
+        String className = loc.declaringType().name();
+        String packagePath = className.contains(".")
+                ? className.substring(0, className.lastIndexOf('.')).replace('.', '/') + "/"
+                : "";
 
-    private void updateStack() {
-        callStackModel.clear();
-        if (state != null && state.getContext() != null) {
-            state.getContext().getCallStack().getFrames().forEach(f -> callStackModel.addElement(f.toString()));
-        }
-    }
+        // Chercher dans plusieurs emplacements possibles
+        String[] possiblePaths = {
+                "src/main/java/" + packagePath + sourceName,
+                "src/main/java/dbg/" + sourceName,
+                "src/main/java/" + sourceName,
+                "src/" + packagePath + sourceName,
+                sourceName
+        };
 
-    // Dans DebuggerGUI.java
-
-    private void updateInspector(int frameIdx) {
-        inspectorRoot.removeAllChildren();
-        if (state != null && state.getContext() != null) {
-            List<DebugFrame> frames = state.getContext().getCallStack().getFrames();
-            if (frameIdx < frames.size()) {
-                // On récupère les variables du frame
-                frames.get(frameIdx).getTemporaries().forEach(v -> {
-                    // On suppose ici que v.getValue() retourne l'objet com.sun.jdi.Value
-                    // Si votre modèle ne l'a pas, utilisez v.getRawValue() ou équivalent
-                    DefaultMutableTreeNode varNode = createVariableNode(v.getName(), v.getValue());
-                    inspectorRoot.add(varNode);
-                });
+        for (String path : possiblePaths) {
+            if (Files.exists(Paths.get(path))) {
+                List<String> lines = Files.readAllLines(Paths.get(path));
+                sourceCodePanel.setSourceLines(lines);
+                sourceCodePanel.setCurrentLine(loc.lineNumber());
+                appendOutput("[LOADED] Source: " + path + "\n");
+                return;
             }
         }
-        inspectorTreeModel.reload();
+
+        appendOutput("[WARN] Source file not found: " + sourceName + " (tried " + possiblePaths.length + " paths)\n");
     }
 
-    private DefaultMutableTreeNode createVariableNode(String name, Value value) {
-        String display = name + " = " + formatValueShort(value);
-        DefaultMutableTreeNode node = new DefaultMutableTreeNode(display);
-
-        if (value instanceof ObjectReference) {
-            ObjectReference obj = (ObjectReference) value;
-
-            if (value instanceof ArrayReference) {
-                ArrayReference array = (ArrayReference) value;
-                for (int i = 0; i < array.length(); i++) {
-                    node.add(createVariableNode("[" + i + "]", array.getValue(i)));
-                }
-            }
-            else {
-                ReferenceType type = obj.referenceType();
-                for (Field field : type.allFields()) {
-                    try {
-                        Value fieldValue = obj.getValue(field);
-                        node.add(createVariableNode(field.name(), fieldValue));
-                    } catch (Exception e) {
-                        node.add(new DefaultMutableTreeNode(field.name() + " = <inaccessible>"));
-                    }
-                }
-            }
-        }
-        return node;
+    /**
+     * Ajoute du texte à la console
+     */
+    public void appendOutput(String text) {
+        outputPanel.appendOutput(text);
     }
 
-    private String formatValueShort(Value v) {
-        if (v == null) return "null";
-        if (v instanceof StringReference) return "\"" + ((StringReference) v).value() + "\"";
-        if (v instanceof PrimitiveValue) return v.toString();
-        if (v instanceof ArrayReference) return "Array[" + ((ArrayReference) v).length() + "]";
-        if (v instanceof ObjectReference) return v.type().name() + " (id=" + ((ObjectReference) v).uniqueID() + ")";
-        return v.toString();
+    /**
+     * Active/désactive les contrôles
+     */
+    public void setControlsEnabled(boolean enabled) {
+        toolbar.setControlsEnabled(enabled);
     }
 
-    public void appendOutput(String txt) {
-        SwingUtilities.invokeLater(() -> {
-            outputArea.append(txt);
-            outputArea.setCaretPosition(outputArea.getDocument().getLength());
-        });
-    }
-
-    public void setCallback(DebuggerCallback cb) { this.callback = cb; }
-    public void enableControls(boolean b) {
-        stepIntoButton.setEnabled(b);
-        stepOverButton.setEnabled(b);
-        continueButton.setEnabled(b);
+    /**
+     * Retourne le panel de code source
+     */
+    public SourceCodePanel getSourceCodePanel() {
+        return sourceCodePanel;
     }
 }

@@ -89,9 +89,32 @@ src/main/java/
 ├── managers/          # Gestionnaires métier (SRP)
 ├── models/            # Modèles de données
 └── gui/               # Interface graphique
+    ├── AbstractDebuggerGUI.java  # Classe abstraite commune (Template Method)
+    ├── ModernDebuggerGUI.java    # GUI moderne
+    ├── ModernScriptableDebuggerGUI.java  # Contrôleur GUI moderne
+    ├── ScriptableDebuggerGUI.java        # Contrôleur ancienne GUI
     ├── components/    # Composants UI réutilisables
     └── theme/         # Système de thèmes
 ```
+
+### Hiérarchie des classes GUI
+
+```
+AbstractDebuggerGUI (Template Method Pattern)
+    ├── ModernScriptableDebuggerGUI  → ModernDebuggerGUI
+    └── ScriptableDebuggerGUI        → DebuggerGUI
+```
+
+La classe abstraite `AbstractDebuggerGUI` contient :
+- La logique de connexion JDI
+- La boucle d'événements
+- La capture de sortie
+- La gestion des threads
+
+Les sous-classes implémentent uniquement :
+- `initializeGUI()` - Création de la fenêtre
+- `onBreakpoint()` / `onStep()` - Réaction aux événements
+- `setInitialBreakpoint()` - Configuration du breakpoint initial
 
 ### Principes appliqués
 

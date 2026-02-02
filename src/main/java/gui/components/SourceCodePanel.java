@@ -128,7 +128,8 @@ public class SourceCodePanel extends JPanel {
                     try {
                         breakpointListener.onBreakpointToggle(clickedLine);
                     } catch (Exception ex) {
-                        ex.printStackTrace();
+                        // Erreur lors du toggle du breakpoint - ignorée silencieusement
+                        // Le listener parent devrait gérer ses propres erreurs
                     }
                 }
             }

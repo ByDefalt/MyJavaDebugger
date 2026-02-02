@@ -8,8 +8,19 @@ import java.util.List;
 
 /**
  * Implémentation console de ResultPresenter
+ * Utilise ConsoleLogger pour le logging (composition)
  */
 public class ConsoleResultPresenter implements ResultPresenter {
+
+    private final Logger logger;
+
+    public ConsoleResultPresenter() {
+        this.logger = new ConsoleLogger(Logger.Level.INFO);
+    }
+
+    public ConsoleResultPresenter(Logger logger) {
+        this.logger = logger;
+    }
 
     @Override
     public void displayResult(CommandResult result) {
@@ -32,51 +43,51 @@ public class ConsoleResultPresenter implements ResultPresenter {
 
     private void displayData(Object data) {
         if (data instanceof Variable) {
-            System.out.println(data);
+            logger.info(data.toString());
         } else if (data instanceof List) {
             displayList((List<?>) data);
         } else if (data instanceof DebugFrame) {
-            System.out.println("Current frame: " + data);
+            logger.info("Current frame: " + data);
         } else if (data instanceof CallStack) {
-            System.out.println(data);
+            logger.info(data.toString());
         } else if (data instanceof MethodInfo) {
-            System.out.println("Method: " + data);
+            logger.info("Method: " + data);
         } else if (data instanceof ObjectReference) {
             ObjectReference obj = (ObjectReference) data;
-            System.out.println(obj.referenceType().name() + "@" + obj.uniqueID());
+            logger.info(obj.referenceType().name() + "@" + obj.uniqueID());
         } else if (data instanceof Breakpoint) {
-            System.out.println("Breakpoint: " + data);
+            logger.info("Breakpoint: " + data);
         } else if (data instanceof ExecutionHistory) {
             // Ne rien afficher - déjà affiché dans le message
         } else if (data instanceof ExecutionSnapshot) {
             // Ne rien afficher - déjà affiché dans le message
         } else {
-            System.out.println(data);
+            logger.info(data.toString());
         }
     }
 
     private void displayList(List<?> list) {
         if (list.isEmpty()) {
-            System.out.println("(empty)");
+            logger.info("(empty)");
         } else {
             for (Object item : list) {
-                System.out.println("  " + item);
+                logger.info("  " + item);
             }
         }
     }
 
     @Override
     public void info(String message) {
-        System.out.println(message);
+        logger.info(message);
     }
 
     @Override
     public void error(String message) {
-        System.err.println("ERROR: " + message);
+        logger.error(message);
     }
 
     @Override
     public void warn(String message) {
-        System.out.println("WARN: " + message);
+        logger.warn(message);
     }
 }

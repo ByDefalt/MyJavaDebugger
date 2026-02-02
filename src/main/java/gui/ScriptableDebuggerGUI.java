@@ -1,157 +1,192 @@
 package gui;
 
 import com.sun.jdi.*;
-import com.sun.jdi.connect.*;
-import com.sun.jdi.event.*;
 import com.sun.jdi.request.*;
 import commands.*;
-import models.*;
+import dbg.AbstractDebugger;
+import io.GUILogger;
+import io.Logger;
+
 import javax.swing.*;
-import java.io.*;
 import java.util.*;
 
-public class ScriptableDebuggerGUI implements DebuggerGUI.DebuggerCallback {
-    private Class debugClass;
-    private VirtualMachine vm;
-    private DebuggerState state;
+/**
+ * Contrôleur du debugger avec GUI
+ *
+ * Hérite de AbstractDebugger (dbg) pour le code commun
+ * Implémente DebuggerGUI.DebuggerController pour l'interface graphique
+ */
+public class ScriptableDebuggerGUI extends AbstractDebugger
+        implements DebuggerGUI.DebuggerController {
+
     private DebuggerGUI gui;
-    private volatile boolean isRunning = true;
-    private boolean shouldContinue = false;
+    private Logger log;
+    private volatile boolean guiReady = false;
 
-    public void attachTo(Class debuggeeClass) {
-        this.debugClass = debuggeeClass;
+    // ========== Implémentation des méthodes abstraites ==========
 
+    @Override
+    protected void initializeUI() {
         SwingUtilities.invokeLater(() -> {
+            gui = new DebuggerGUI();
+            gui.setController(this);
+            gui.setVisible(true);
+
+            // Créer le logger GUI (DIP - injection de la dépendance)
+            log = new GUILogger(gui::appendOutput, Logger.Level.DEBUG);
+
+            guiReady = true;
+        });
+
+        // Attendre que la GUI soit prête
+        while (!guiReady) {
             try {
-                gui = new DebuggerGUI();
-                gui.setCallback(this);
-                gui.setVisible(true);
-                gui.appendOutput("🚀 Debugging " + debugClass.getSimpleName() + "...\n");
-            } catch (Exception e) {
-                e.printStackTrace();
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                break;
             }
-        });
-
-        try {
-            vm = connectAndLaunchVM();
-            state = new DebuggerState(vm);
-
-            captureTargetOutput();
-
-            enableClassPrepareRequest(vm);
-            startDebuggerLoop();
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            if (gui != null) gui.appendOutput("Erreur de connexion : " + e.getMessage());
         }
     }
 
-    private void captureTargetOutput() {
-        Process process = vm.process();
-        if (process == null) return;
-
-        Thread readerThread = new Thread(() -> {
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while (isRunning && (line = reader.readLine()) != null) {
-                    String finalLine = line;
-                    try {
-                        gui.appendOutput(finalLine + "\n");
-                    }catch (Exception ignored){
-
-                    }
-                }
-            } catch (IOException e) {
-                if (isRunning) gui.appendOutput("Erreur de lecture console: " + e.getMessage() + "\n");
-            }
-        });
-
-        readerThread.setDaemon(true);
-        readerThread.start();
+    @Override
+    protected void onBeforeStart() {
+        // Rien de spécial
     }
 
-    private VirtualMachine connectAndLaunchVM() throws Exception {
-        LaunchingConnector connector = Bootstrap.virtualMachineManager().defaultConnector();
-        Map<String, Connector.Argument> args = connector.defaultArguments();
-        args.get("main").setValue(debugClass.getName());
-        args.get("options").setValue("-cp " + System.getProperty("java.class.path"));
-        return connector.launch(args);
-    }
-
-    private void enableClassPrepareRequest(VirtualMachine vm) {
-        ClassPrepareRequest r = vm.eventRequestManager().createClassPrepareRequest();
-        r.addClassFilter(debugClass.getName());
-        r.enable();
-    }
-
-    private void startDebuggerLoop() throws Exception {
-        while (isRunning) {
-            EventSet eventSet = vm.eventQueue().remove();
-            for (Event event : eventSet) {
-                if (event instanceof VMDisconnectEvent) {
-                    gui.appendOutput("\nProcess finished.");
-                    gui.enableControls(false);
-                    return;
-                }
-                if (event instanceof ClassPrepareEvent) {
-                    setInitialBreakpoint();
-                }
-                if (event instanceof BreakpointEvent || event instanceof StepEvent) {
-                    LocatableEvent le = (LocatableEvent) event;
-                    if (event instanceof StepEvent) vm.eventRequestManager().deleteEventRequest(event.request());
-                    handleStop(le.location(), le.thread());
-                }
-            }
-            vm.resume();
+    @Override
+    protected void onInfo(String message) {
+        if (log != null) {
+            log.info(message);
         }
     }
+
+    @Override
+    protected void onError(String message) {
+        if (log != null) {
+            log.error(message);
+        }
+    }
+
+    @Override
+    protected void onOutput(String output) {
+        // Output du programme debuggé - pas de préfixe
+        if (gui != null) {
+            SwingUtilities.invokeLater(() -> gui.appendOutput(output));
+        }
+    }
+
+    @Override
+    protected void onVMDisconnect() {
+        if (log != null) {
+            log.info("Process finished.");
+        }
+        SwingUtilities.invokeLater(() -> gui.setControlsEnabled(false));
+    }
+
+    @Override
+    protected void onBreakpoint(Location loc, ThreadReference thread) throws Exception {
+        if (log != null) {
+            log.info("Breakpoint at %s:%d", loc.sourceName(), loc.lineNumber());
+        }
+        updateUIAndWait(loc, thread);
+    }
+
+    @Override
+    protected void onStep(Location loc, ThreadReference thread) throws Exception {
+        if (log != null) {
+            log.debug("Step at %s:%d", loc.sourceName(), loc.lineNumber());
+        }
+        updateUIAndWait(loc, thread);
+    }
+
+    @Override
+    protected void onClassPrepare(ReferenceType refType) {
+        if (log != null) {
+            log.debug("Class loaded: %s", refType.name());
+        }
+        setInitialBreakpoint();
+    }
+
+    // ========== Méthodes spécifiques ==========
 
     private void setInitialBreakpoint() {
+        if (log != null) {
+            log.debug("Looking for class: %s", debugClass.getName());
+            log.debug("All classes count: %d", vm.allClasses().size());
+        }
+
         for (ReferenceType type : vm.allClasses()) {
             if (type.name().equals(debugClass.getName())) {
+                if (log != null) {
+                    log.debug("Found class: %s", type.name());
+                }
                 try {
-                    List<Location> locs = type.locationsOfLine(6);
-                    if (!locs.isEmpty()) {
-                        vm.eventRequestManager().createBreakpointRequest(locs.get(0)).enable();
+                    for (int lineNum = 13; lineNum <= 25; lineNum++) {
+                        List<Location> locs = type.locationsOfLine(lineNum);
+                        if (!locs.isEmpty()) {
+                            vm.eventRequestManager().createBreakpointRequest(locs.get(0)).enable();
+                            if (log != null) {
+                                log.info("Breakpoint set at line %d", lineNum);
+                            }
+                            return;
+                        }
                     }
-                } catch (Exception ignored) {}
+                    if (log != null) {
+                        log.warn("No executable lines found in range 13-25");
+                    }
+                } catch (Exception e) {
+                    if (log != null) {
+                        log.error("Error setting breakpoint", e);
+                    }
+                }
             }
+        }
+        if (log != null) {
+            log.warn("Class not found in VM classes");
         }
     }
 
-    private void handleStop(Location loc, ThreadReference thread) throws IncompatibleThreadStateException {
+    private void updateUIAndWait(Location loc, ThreadReference thread) throws Exception {
         state.updateContext(thread);
         SwingUtilities.invokeLater(() -> {
             gui.updateDebuggerState(state, loc, thread);
-            gui.enableControls(true);
+            gui.setControlsEnabled(true);
         });
-        waitForCommand();
+        waitForUserCommand();
+        resumeVM();
     }
 
-    private synchronized void waitForCommand() {
-        shouldContinue = false;
-        while (!shouldContinue && isRunning) {
-            try { wait(100); } catch (InterruptedException e) { break; }
-        }
+    // ========== Implémentation de DebuggerController ==========
+
+    @Override
+    public void onContinue() throws Exception {
+        new ContinueCommand().execute(state);
+        signalContinue();
     }
 
     @Override
-    public synchronized void executeCommand(Command cmd) throws Exception {
-        cmd.execute(state);
-        shouldContinue = true;
-        notifyAll();
+    public void onStepOver() throws Exception {
+        new StepOverCommand().execute(state);
+        signalContinue();
     }
 
     @Override
-    public void placeBreakpoint(String file, int line) throws Exception {
+    public void onStepInto() throws Exception {
+        new StepCommand().execute(state);
+        signalContinue();
+    }
+
+    @Override
+    public void onStop() {
+        stop();
+        System.exit(0);
+    }
+
+    @Override
+    public void onBreakpointToggle(String file, int line) throws Exception {
         new BreakCommand(file, line).execute(state);
-        gui.appendOutput("Breakpoint set: " + file + ":" + line + "\n");
-    }
-
-    @Override
-    public void stop() {
-        isRunning = false;
-        if (vm != null) vm.exit(0);
+        if (log != null) {
+            log.info("Breakpoint set: %s:%d", file, line);
+        }
     }
 }

@@ -1,26 +1,22 @@
 package dbg;
 
 import com.sun.jdi.*;
-import com.sun.jdi.connect.*;
-import com.sun.jdi.event.*;
 import com.sun.jdi.request.*;
 import commands.*;
 import handlers.*;
 import io.*;
 import models.*;
-import java.io.*;
+
 import java.util.*;
 
 /**
- * Debugger scriptable refactoré selon les principes SOLID :
- * - SRP : Responsabilités séparées (handlers, IO, commands)
- * - OCP : Extensible via EventHandlerRegistry
- * - DIP : Dépend d'abstractions (InputReader, ResultPresenter)
+ * Debugger scriptable en mode console
+ *
+ * Hérite de AbstractDebugger pour le code commun
+ * Utilise InputReader et ResultPresenter pour l'I/O (DIP)
  */
-public class ScriptableDebugger {
-    private Class<?> debugClass;
-    private VirtualMachine vm;
-    private DebuggerState state;
+public class ScriptableDebugger extends AbstractDebugger {
+
     private CommandInterpreter interpreter;
     private boolean autoRecord;
 
@@ -48,108 +44,126 @@ public class ScriptableDebugger {
         this.eventHandlerRegistry = new EventHandlerRegistry();
     }
 
-    public VirtualMachine connectAndLaunchVM() throws IOException,
-            IllegalConnectorArgumentsException, VMStartException {
-        LaunchingConnector launchingConnector = Bootstrap.virtualMachineManager()
-                .defaultConnector();
-        Map<String, Connector.Argument> arguments = launchingConnector.defaultArguments();
-        arguments.get("main").setValue(debugClass.getName());
-        arguments.get("options").setValue("-cp " + System.getProperty("java.class.path"));
-        return launchingConnector.launch(arguments);
+    // ========== Implémentation des callbacks abstraits ==========
+
+    @Override
+    protected void initializeUI() {
+        // Console : rien à initialiser
     }
 
-    public void attachTo(Class<?> debuggeeClass) {
-        this.debugClass = debuggeeClass;
-        try {
-            vm = connectAndLaunchVM();
-            state = new DebuggerState(vm);
-
-            // Enregistrer les handlers d'événements (OCP)
-            registerEventHandlers();
-
-            if (autoRecord) {
-                state.setRecordingMode(true);
-                presenter.info("=== AUTO-RECORDING MODE ENABLED ===");
-                presenter.info("The debugger will automatically step through ALL code and record execution states.");
-            }
-
-            enableClassPrepareRequest(vm);
-            startDebugger();
-        } catch (Exception e) {
-            presenter.error(e.getMessage());
-            e.printStackTrace();
-        }
-    }
-
-    /**
-     * Enregistre les handlers d'événements (Open/Closed Principle)
-     * Pour ajouter un nouveau type d'événement, créer un nouveau handler et l'enregistrer ici
-     */
-    private void registerEventHandlers() {
+    @Override
+    protected void onBeforeStart() {
+        // Enregistrer les handlers d'événements (OCP)
         eventHandlerRegistry.register(new VMDisconnectEventHandler());
         eventHandlerRegistry.register(new ClassPrepareEventHandler(debugClass));
         eventHandlerRegistry.register(new BreakpointEventHandler());
         eventHandlerRegistry.register(new StepEventHandler());
         eventHandlerRegistry.register(new MethodEntryEventHandler(debugClass));
-    }
 
-    public void enableClassPrepareRequest(VirtualMachine vm) {
-        ClassPrepareRequest r = vm.eventRequestManager().createClassPrepareRequest();
-        r.addClassFilter(debugClass.getName());
-        r.enable();
-    }
+        if (autoRecord) {
+            state.setRecordingMode(true);
+            presenter.info("=== AUTO-RECORDING MODE ENABLED ===");
+            presenter.info("The debugger will automatically step through ALL code and record execution states.");
+        }
 
-
-    public void startDebugger() throws InterruptedException, AbsentInformationException {
         presenter.info("=== Scriptable Debugger Started ===");
         presenter.info("Available commands: " + interpreter.getAvailableCommands());
+    }
 
-        while (true) {
-            EventSet eventSet = vm.eventQueue().remove();
+    @Override
+    protected void onInfo(String message) {
+        presenter.info(message);
+    }
 
-            for (Event event : eventSet) {
-                try {
-                    // Dispatcher l'événement aux handlers (OCP)
-                    EventHandlerResult result = eventHandlerRegistry.dispatch(event, state);
+    @Override
+    protected void onError(String message) {
+        presenter.error(message);
+    }
 
-                    // Afficher le message si présent
-                    if (!result.getMessage().isEmpty()) {
-                        presenter.info(result.getMessage());
-                    }
+    @Override
+    protected void onOutput(String output) {
+        System.out.print(output);
+    }
 
-                    // Traiter l'action demandée
-                    switch (result.getAction()) {
-                        case STOP:
-                            printProcessOutput();
-                            return;
+    @Override
+    protected void onVMDisconnect() {
+        presenter.info("\n=== Program terminated ===");
 
-                        case ENTER_REPLAY_MODE:
-                            replayMode();
-                            printProcessOutput();
-                            return;
+        if (state.isRecordingMode()) {
+            state.getExecutionHistory().completeRecording();
+            presenter.info("\n=== RECORDING COMPLETE ===");
+            presenter.info("Total steps recorded: " + state.getExecutionHistory().size());
+            presenter.info("\nYou can now navigate through execution history with:");
+            presenter.info("  - forward: go to next step");
+            presenter.info("  - back: go to previous step");
+            presenter.info("  - history: show execution history overview");
 
-                        case WAIT_FOR_COMMAND:
-                            handleUserCommandLoop();
-                            break;
+            state.setRecordingMode(false);
+            state.setReplayMode(true);
 
-                        case CONTINUE:
-                        default:
-                            // Continuer normalement
-                            break;
-                    }
-
-                } catch (Exception e) {
-                    presenter.error("Error handling event: " + e.getMessage());
-                    e.printStackTrace();
-                }
+            if (state.getExecutionHistory().size() > 0) {
+                presenter.info("\n" + state.getExecutionHistory().getCurrentSnapshot().toDetailedString());
             }
 
-            vm.resume();
+            replayMode();
+        }
+
+        printProcessOutput();
+    }
+
+    @Override
+    protected void onBreakpoint(Location loc, ThreadReference thread) throws Exception {
+        presenter.info("\n=== Breakpoint hit ===");
+        presenter.info("Location: " + loc.sourceName() + ":" + loc.lineNumber());
+        presenter.info("Method: " + loc.method().name());
+
+        state.updateContext(thread);
+        handleUserCommandLoop();
+        resumeVM();
+    }
+
+    @Override
+    protected void onStep(Location loc, ThreadReference thread) throws Exception {
+        if (state.isRecordingMode()) {
+            // Mode recording : enregistrer et continuer
+            managers.SnapshotRecorder recorder = new managers.SnapshotRecorder(state);
+            recorder.recordSnapshot(thread);
+            if (recorder.shouldLogProgress()) {
+                presenter.info("... Recorded " + recorder.getStepCount() + " steps ...");
+            }
+            resumeVM();
+        } else {
+            // Mode normal : afficher et attendre
+            presenter.info("\nStepped to: " + loc.sourceName() + ":" + loc.lineNumber());
+            state.updateContext(thread);
+            handleUserCommandLoop();
+            resumeVM();
         }
     }
 
+    @Override
+    protected void onClassPrepare(ReferenceType refType) {
+        presenter.info("Class loaded: " + debugClass.getName());
+
+        if (state.isRecordingMode()) {
+            // Configurer le step automatique pour le recording
+            setupAutoRecording();
+        }
+    }
+
+    // ========== Méthodes spécifiques au mode console ==========
+
+    private void setupAutoRecording() {
+        EventRequestManager erm = vm.eventRequestManager();
+        MethodEntryRequest methodEntryRequest = erm.createMethodEntryRequest();
+        methodEntryRequest.addClassFilter(debugClass.getName());
+        methodEntryRequest.setSuspendPolicy(EventRequest.SUSPEND_EVENT_THREAD);
+        methodEntryRequest.enable();
+        presenter.info("MethodEntryRequest configured for " + debugClass.getName());
+    }
+
     /**
-     * Boucle de commandes utilisateur (attend une commande de continuation)
+     * Boucle de commandes utilisateur
      */
     private void handleUserCommandLoop() {
         while (true) {
@@ -164,7 +178,6 @@ public class ScriptableDebugger {
                 CommandResult result = command.execute(state);
                 presenter.displayResult(result);
 
-                // Si la commande est de type navigation (step, continue), sortir de la boucle
                 if (isNavigationCommand(input)) {
                     break;
                 }
@@ -174,43 +187,17 @@ public class ScriptableDebugger {
         }
     }
 
-    /**
-     * Vérifie si la commande est une commande de navigation
-     */
     private boolean isNavigationCommand(String input) {
         String cmd = input.trim().split("\\s+")[0];
         return cmd.equals("step") || cmd.equals("step-over") || cmd.equals("continue");
     }
 
-    public void printProcessOutput() {
-        try {
-            InputStreamReader reader = new InputStreamReader(vm.process().getInputStream());
-            OutputStreamWriter writer = new OutputStreamWriter(System.out);
-            reader.transferTo(writer);
-            writer.flush();
-        } catch (IOException e) {
-            System.err.println("Error reading VM output: " + e.getMessage());
-        }
-    }
-
     /**
-     * Mode replay : permet à l'utilisateur de naviguer dans l'historique d'exécution
-     * avec les commandes de débogage habituelles (step, step-over, continue, break, etc.)
+     * Mode replay pour naviguer dans l'historique
      */
     private void replayMode() {
         presenter.info("\n=== REPLAY MODE ===");
-        presenter.info("You can now use standard debugger commands to navigate the recorded execution:");
-        presenter.info("  step        - step into (go to next recorded state)");
-        presenter.info("  step-over   - step over (skip to next state at same or lower stack depth)");
-        presenter.info("  continue    - continue until breakpoint or end");
-        presenter.info("  break <file> <line> - set a breakpoint");
-        presenter.info("  breakpoints - list breakpoints");
-        presenter.info("  back        - go back one step");
-        presenter.info("  forward     - go forward one step");
-        presenter.info("  history     - show execution overview");
-        presenter.info("  stack       - show call stack");
-        presenter.info("  frame       - show current frame");
-        presenter.info("  quit        - exit replay mode");
+        presenter.info("Commands: step, step-over, continue, back, forward, history, stack, frame, quit");
 
         while (true) {
             String input = inputReader.readLine("\ndbg> ");
@@ -234,3 +221,4 @@ public class ScriptableDebugger {
         }
     }
 }
+

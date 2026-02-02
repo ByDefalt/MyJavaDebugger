@@ -25,22 +25,22 @@ public class ClassPrepareEventHandler implements EventHandler<ClassPrepareEvent>
 
     @Override
     public EventHandlerResult handle(ClassPrepareEvent event, DebuggerState state) {
-        System.out.println("Class loaded: " + debugClass.getName());
+        String message = "Class loaded: " + debugClass.getName();
 
         if (state.isRecordingMode()) {
-            setupMainMethodEntry(state);
+            message += "\n" + setupMainMethodEntry(state);
         }
 
-        return EventHandlerResult.continueExecution();
+        return EventHandlerResult.continueExecution(message);
     }
 
-    private void setupMainMethodEntry(DebuggerState state) {
+    private String setupMainMethodEntry(DebuggerState state) {
         EventRequestManager erm = state.getVm().eventRequestManager();
         MethodEntryRequest methodEntryRequest = erm.createMethodEntryRequest();
         methodEntryRequest.addClassFilter(debugClass.getName());
         methodEntryRequest.setSuspendPolicy(EventRequest.SUSPEND_EVENT_THREAD);
         methodEntryRequest.enable();
 
-        System.out.println("MethodEntryRequest configured for " + debugClass.getName());
+        return "MethodEntryRequest configured for " + debugClass.getName();
     }
 }

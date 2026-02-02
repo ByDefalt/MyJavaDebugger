@@ -39,6 +39,8 @@ public class StyledButton extends JButton {
         setBorder(BorderFactory.createEmptyBorder(6, 15, 6, 15));
         setCursor(new Cursor(Cursor.HAND_CURSOR));
         setBackground(getColorForType());
+        setOpaque(true);
+        setContentAreaFilled(true);
     }
 
     private Color getColorForType() {
