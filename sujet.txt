@@ -1,0 +1,122 @@
+Debugging
+Implémentation des
+Time-Traveling Queries
+Steven Costiou
+Centre Inria de l’Université de Lille
+Décembre 2025
+Cet exercice noté est composé de deux parties, qui peuvent être
+faites dans l’ordre que vous voulez. Vous reprendrez l’entièreté du code
+développé lors des précédents TPs. Vous devez construire un debug-
+ger pour les time-traveling queries, pour lesquelles votre référence est la
+vidéo suivante https://rmod-files.lille.inria.fr/Videos/Research/
+2022-Time-Traveling-Queries-Demo-GDR-GPL.mp4.
+Pour illustrer les consignes, nous reprenons le debugger graphique que vous
+avez développé. Une première partie vous donne des consignes générales et des
+pistes de réflexions indépendantes de l’interface humain-machine du debugger.
+Notamment, cette partie insiste sur les questions que vous devriez vous poser
+pour réussir l’implémentation des time-traveling queries. Les deux parties
+suivantes décrivent les fonctionnalités finales que nous souhaitons obtenir.
+La notation **finale** se fera pendant le TP suivant votre avancée
+et vos explications. Des groupes de deux personnes maximum pourront se
+former mais la note sera commune. C’est-à-dire que si vous travaillez stricte-
+ment séparément, un mauvais travail de votre binôme **ou** une mauvaise
+compréhension de son travail affectera votre note, il est donc conseillé de pair-
+programmer ou d’échanger souvent sur les tâches.
+1
+1 Consignes générales et éléments de réflexion
+Les Time-Traveling Queries reposent sur deux principes :
+1. La collecte d’information dans une exécution,
+2. le voyage dans le temps (à volonté en avant et en arrière) dans l’exécution
+"live" à partir des informations collectées.
+Il vous faut donc, d’une part vous demander comment collecter des in-
+formations dans une exécution et comment les conserver, et d’autre part
+comment naviguer dans le temps, i.e., comment savoir "où aller" et com-
+ment concrètement "y aller".
+On imagine ici un moteur de "time-travel" naïf : pas de concurrence, exé-
+cutions déterministes, pas d’inquiètude sur la performance (il est probable que
+votre implémentation soit très lente).
+Pour voir un résultat intéressant, il faudra debugger un programme un peu
+plus long que celui fourni en exemple, mais éviter un programme trop gros
+vis-à-vis de la lenteur probable du time-travel.
+ATTENTION : L’exécution doit rester "live", c’est-à-dire qu’après chaque
+voyage dans le temps, vous devez pouvoir utiliser votre debugger normalement.
+Par exemple :
+• Voyage dans le temps à partir du résultat d’une TTQ,
+• stepping dans le debugger,
+• nouveau voyage dans le temps,
+• etc.
+Il est fortement conseillé de développer la partie "time-travel" pas à pas en
+dehors de la GUI et de construire une API que vous pourrez utiliser pour des
+tests et pour brancher la GUI ensuite. Pour concevoir cette API, vous devrez
+d’abord consulter les fonctionnalités demandées dans les section ci-dessous pour
+savoir quelles interfaces fournir et quelle implémentation développer.
+2
+2 Pistage de variables au travers du tempsDebugger GUI
+Variable inspector
+Follow
+modification 1
+modification 2
+...
+modification n
+Time-travel
+Figure 1: Debugger graphique : illustration.
+La Figure 1 illustre la fonctionnalité du suivi de variable. Vous devez :
+• Proposer une action "suivre" sur une variable de votre inspecteur,
+• collecter toutes les modifications de cette variable lors de votre exécution,
+• proposer les résultats dans un panneau dédié de votre debugger,
+• proposer, sur chaque résultat, une action "time-travel" qui vous ramène
+au moment de l’exécution où vous avez collecté le résultat,
+• après n’importe quel time-travel, vous pouvez exécuter pas-à-pas votre
+debugger ou effectuer un nouveau time-travel.
+ATTENTION :
+• Le suivi de variable cible une variable particulière, et pas d’autres variables
+portant le même nom,
+• la vue des résultats doit être suffisamment informative pour pouvoir dé-
+cider d’un time-travel → qu’affichez vous ?
+• les résultats d’un suivi de variable persistent entre chaque time-travel
+et/ou action (e.g., exécution pas-à-pas) jusqu’à ce que vous terminiez la
+session de debugging ou que vous suiviez une nouvelle variable,
+• le suivi de variable se passe sur l’exécution entière : si vous êtes arrivé.e.s
+"au milieu" de l’exécution et que vous décidez de suivre une variable,
+vous devez également retrouver les modifications de cette variable avant
+ce moment (le "milieu" de l’exemple).
+3
+3 Pistage des appels au travers du tempsDebugger GUI
+Call stack
+- find all calls
+- find all calls to...
+call 1
+call 2
+call n
+...
+Time-travel
+Figure 2: Debugger graphique : illustration.
+La Figure 2 illustre la fonctionnalité de pistage d’appels de méthodes (ou
+"method calls"). Vous devez :
+• Proposer deux actions sur votre call stack ou sur votre code source:
+1. Find all method calls → trouve tous les appels de méthodes, quelle
+que soit la méthode,
+2. Find all calls to method M → trouve tous les appels à la méthode
+M .
+• collecter tous les appels de méthodes correspondant lors de votre exécu-
+tion,
+• proposer les résultats dans un panneau dédié de votre debugger,
+• proposer, sur chaque résultat, une action "time-travel" qui vous ramène
+au moment de l’exécution où vous avez collecté le résultat,
+• après n’importe quel time-travel, vous pouvez exécuter pas-à-pas votre
+debugger ou effectuer un nouveau time-travel.
+4
+ATTENTION :
+• La recherche des appels à une méthode particulière doit bien suivre cette
+méthode précise et pas une autre portant le même nom mais qui serait,
+par exemple, dans un autre package,
+• la vue des résultats doit être suffisamment informative pour pouvoir dé-
+cider d’un time-travel → qu’affichez vous ?
+• les résultats persistent entre chaque time-travel et/ou action (e.g., exécu-
+tion pas-à-pas) jusqu’à ce que vous terminiez la session de debugging ou
+que vous demandiez à trouver d’autres appels de méthodes,
+• comme pour le suivi de variable, cela se passe sur l’exécution entière : si
+vous êtes arrivés "au milieu" de l’exécution et que vous décidez de chercher
+tous les appels à X, vous devez également retrouver les appels avant ce
+moment (le "milieu" de l’exemple).
+5
