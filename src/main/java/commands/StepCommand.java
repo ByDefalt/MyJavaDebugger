@@ -4,7 +4,7 @@ import com.sun.jdi.ThreadReference;
 import com.sun.jdi.request.StepRequest;
 import models.DebuggerState;
 
-class StepCommand implements Command {
+public class StepCommand implements Command {
     @Override
     public CommandResult execute(DebuggerState state) throws Exception {
         ThreadReference thread = state.getContext().getThread();

@@ -9,7 +9,7 @@ import models.DebuggerState;
 
 import java.util.List;
 
-class BreakCommand implements Command {
+public class BreakCommand implements Command {
     private String fileName;
     private int lineNumber;
 
