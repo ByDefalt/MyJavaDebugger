@@ -17,6 +17,11 @@ public class CommandInterpreter {
         commandFactories.put("step-over", args -> new StepOverCommand());
         commandFactories.put("continue", args -> new ContinueCommand());
 
+        // History navigation (replay mode)
+        commandFactories.put("back", args -> new BackCommand());
+        commandFactories.put("forward", args -> new ForwardCommand());
+        commandFactories.put("history", args -> new HistoryCommand());
+
         // Inspection
         commandFactories.put("frame", args -> new FrameCommand());
         commandFactories.put("temporaries", args -> new TemporariesCommand());

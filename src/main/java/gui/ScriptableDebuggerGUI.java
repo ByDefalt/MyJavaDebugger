@@ -58,7 +58,7 @@ public class ScriptableDebuggerGUI implements DebuggerGUI.DebuggerCallback {
                     String finalLine = line;
                     try {
                         gui.appendOutput(finalLine + "\n");
-                    }catch (Exception e){
+                    }catch (Exception ignored){
 
                     }
                 }

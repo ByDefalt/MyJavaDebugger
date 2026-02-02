@@ -17,3 +17,17 @@ dependencies {
 tasks.test {
     useJUnitPlatform()
 }
+
+tasks.register<JavaExec>("runRecording") {
+    group = "application"
+    description = "Run the Recording Debugger"
+    mainClass.set("dbg.RecordingDebugger")
+    classpath = sourceSets["main"].runtimeClasspath
+}
+
+tasks.register<JavaExec>("runDebugger") {
+    group = "application"
+    description = "Run the standard Debugger"
+    mainClass.set("dbg.JDISimpleDebugger")
+    classpath = sourceSets["main"].runtimeClasspath
+}

@@ -5,7 +5,7 @@ import java.util.List;
 
 public class JDISimpleDebuggee {
 
-    public class Machin{
+    public static class Machin{
         public String truc;
     }
 
@@ -14,7 +14,7 @@ public class JDISimpleDebuggee {
         System.out.println(description + " -- starting");
         int x = 40;
         List<Machin> machins = new ArrayList<>();
-        machins.add(new JDISimpleDebuggee().new Machin());
+        machins.add(new Machin());
         int power = 2;
         printPower(x, power);
     }

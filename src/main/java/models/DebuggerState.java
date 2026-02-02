@@ -14,12 +14,18 @@ public class DebuggerState {
     private Map<String, Breakpoint> breakpoints;
     private Map<String, MethodEntryRequest> methodBreakpoints;
     private boolean running;
+    private ExecutionHistory executionHistory;
+    private boolean replayMode;
+    private boolean recordingMode;
 
     public DebuggerState(VirtualMachine vm) {
         this.vm = vm;
         this.breakpoints = new HashMap<>();
         this.methodBreakpoints = new HashMap<>();
         this.running = true;
+        this.executionHistory = new ExecutionHistory();
+        this.replayMode = false;
+        this.recordingMode = false;
     }
 
     public void updateContext(ThreadReference thread) throws IncompatibleThreadStateException {
@@ -32,4 +38,9 @@ public class DebuggerState {
     public Map<String, MethodEntryRequest> getMethodBreakpoints() { return methodBreakpoints; }
     public boolean isRunning() { return running; }
     public void setRunning(boolean running) { this.running = running; }
+    public ExecutionHistory getExecutionHistory() { return executionHistory; }
+    public boolean isReplayMode() { return replayMode; }
+    public void setReplayMode(boolean replayMode) { this.replayMode = replayMode; }
+    public boolean isRecordingMode() { return recordingMode; }
+    public void setRecordingMode(boolean recordingMode) { this.recordingMode = recordingMode; }
 }

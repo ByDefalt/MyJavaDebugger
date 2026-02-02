@@ -20,8 +20,24 @@ public class BreakCommand implements Command {
 
     @Override
     public CommandResult execute(DebuggerState state) throws Exception {
+        // Normaliser le nom de fichier (ajouter .java si absent)
+        String normalizedFileName = fileName;
+        if (!normalizedFileName.endsWith(".java")) {
+            normalizedFileName = normalizedFileName + ".java";
+        }
+
+        // En mode replay, simplement enregistrer le breakpoint logique
+        if (state.isReplayMode()) {
+            String key = normalizedFileName + ":" + lineNumber;
+            Breakpoint bp = new Breakpoint(normalizedFileName, lineNumber, null,
+                    Breakpoint.BreakpointType.NORMAL);
+            state.getBreakpoints().put(key, bp);
+            return CommandResult.success("Breakpoint set (replay mode) at " + key, bp);
+        }
+
+        // Mode normal : créer un vrai BreakpointRequest
         for (ReferenceType t : state.getVm().allClasses()) {
-            if (t.sourceName().equals(fileName)) {
+            if (t.sourceName().equals(normalizedFileName) || t.sourceName().equals(fileName)) {
                 List<Location> locs = t.locationsOfLine(lineNumber);
                 if (locs.isEmpty()) {
                     return CommandResult.error("No code at line " + lineNumber);
@@ -32,9 +48,9 @@ public class BreakCommand implements Command {
                         .createBreakpointRequest(loc);
                 req.enable();
 
-                Breakpoint bp = new Breakpoint(fileName, lineNumber, req,
+                Breakpoint bp = new Breakpoint(normalizedFileName, lineNumber, req,
                         Breakpoint.BreakpointType.NORMAL);
-                state.getBreakpoints().put(fileName + ":" + lineNumber, bp);
+                state.getBreakpoints().put(normalizedFileName + ":" + lineNumber, bp);
 
                 return CommandResult.success("Breakpoint set", bp);
             }

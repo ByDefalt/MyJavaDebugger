@@ -14,9 +14,19 @@ public class ScriptableDebugger {
     private VirtualMachine vm;
     private DebuggerState state;
     private CommandInterpreter interpreter;
+    private int stepCounter;
+    private boolean autoRecord;
 
     public ScriptableDebugger() {
         this.interpreter = new CommandInterpreter();
+        this.stepCounter = 0;
+        this.autoRecord = false;
+    }
+
+    public ScriptableDebugger(boolean autoRecord) {
+        this.interpreter = new CommandInterpreter();
+        this.stepCounter = 0;
+        this.autoRecord = autoRecord;
     }
 
     public VirtualMachine connectAndLaunchVM() throws IOException,
@@ -34,6 +44,13 @@ public class ScriptableDebugger {
         try {
             vm = connectAndLaunchVM();
             state = new DebuggerState(vm);
+
+            if (autoRecord) {
+                state.setRecordingMode(true);
+                System.out.println("=== AUTO-RECORDING MODE ENABLED ===");
+                System.out.println("The debugger will automatically step through ALL code and record execution states.");
+            }
+
             enableClassPrepareRequest(vm);
             startDebugger();
         } catch (Exception e) {
@@ -111,6 +128,12 @@ public class ScriptableDebugger {
             System.out.println(obj.referenceType().name() + "@" + obj.uniqueID());
         } else if (data instanceof Breakpoint) {
             System.out.println("Breakpoint: " + data);
+        } else if (data instanceof ExecutionHistory) {
+            // Ne rien afficher - déjà affiché dans le message
+            return;
+        } else if (data instanceof ExecutionSnapshot) {
+            // Ne rien afficher - déjà affiché dans le message
+            return;
         } else {
             System.out.println(data);
         }
@@ -159,29 +182,63 @@ public class ScriptableDebugger {
             }
         }
     }
-    private void setInitialBreakpoint() {
-        for (ReferenceType type : vm.allClasses()) {
-            if (type.name().equals(debugClass.getName())) {
-                try {
-                    // Récupérer le nom du fichier source
-                    String sourceFile = type.sourceName();
+    /**
+     * Configure un MethodEntryRequest pour démarrer l'enregistrement dès l'entrée dans main()
+     */
+    private void setMainMethodEntry() {
+        EventRequestManager erm = vm.eventRequestManager();
+        MethodEntryRequest methodEntryRequest = erm.createMethodEntryRequest();
 
-                    // Placer le breakpoint à la ligne 6 (ou autre)
-                    List<Location> locations = type.locationsOfLine(6);
-                    if (!locations.isEmpty()) {
-                        Location loc = locations.get(0);
-                        BreakpointRequest req = vm.eventRequestManager()
-                                .createBreakpointRequest(loc);
-                        req.enable();
-                        System.out.println("Initial breakpoint set at " + sourceFile + ":6");
-                        return;
-                    }
-                } catch (AbsentInformationException e) {
-                    System.err.println("No debug info available");
-                }
+        // Filtrer uniquement pour la classe debuggée
+        methodEntryRequest.addClassFilter(debugClass.getName());
+
+        // Suspendre le thread quand on entre dans une méthode
+        methodEntryRequest.setSuspendPolicy(EventRequest.SUSPEND_EVENT_THREAD);
+        methodEntryRequest.enable();
+
+        System.out.println("MethodEntryRequest configured for " + debugClass.getName());
+    }
+
+    /**
+     * Crée une StepRequest pour automatiquement step-in à chaque instruction
+     */
+    private void createAutoStepRequest(ThreadReference thread) {
+        EventRequestManager erm = vm.eventRequestManager();
+        StepRequest stepRequest = erm.createStepRequest(thread,
+                StepRequest.STEP_LINE,  // Step ligne par ligne
+                StepRequest.STEP_INTO); // Entrer dans les méthodes
+
+        // Filtrer pour ne step que dans notre classe debuggée (et ses dépendances)
+        // On peut ajouter des filtres pour exclure les classes système
+        stepRequest.addClassExclusionFilter("java.*");
+        stepRequest.addClassExclusionFilter("javax.*");
+        stepRequest.addClassExclusionFilter("sun.*");
+        stepRequest.addClassExclusionFilter("com.sun.*");
+        stepRequest.addClassExclusionFilter("jdk.*");
+
+        stepRequest.enable();
+    }
+
+    /**
+     * Enregistre un snapshot de l'état d'exécution actuel
+     */
+    private void recordSnapshot(ThreadReference thread) {
+        try {
+            ExecutionSnapshot snapshot = new ExecutionSnapshot(stepCounter++, thread);
+            state.getExecutionHistory().addSnapshot(snapshot);
+
+            if (stepCounter % 100 == 0) {
+                System.out.println("... Recorded " + stepCounter + " steps ...");
             }
+        } catch (Exception e) {
+            System.err.println("Error recording snapshot: " + e.getMessage());
         }
     }
+
+
+
+
+
     public void startDebugger() throws InterruptedException, AbsentInformationException {
         System.out.println("=== Scriptable Debugger Started ===");
         System.out.println("Available commands: " + interpreter.getAvailableCommands());
@@ -193,33 +250,81 @@ public class ScriptableDebugger {
                 try {
                     if (event instanceof VMDisconnectEvent) {
                         System.out.println("\n=== Program terminated ===");
+
+                        // Si en mode recording, finaliser l'enregistrement
+                        if (state.isRecordingMode()) {
+                            state.getExecutionHistory().completeRecording();
+                            System.out.println("\n=== RECORDING COMPLETE ===");
+                            System.out.println("Total steps recorded: " + state.getExecutionHistory().size());
+                            System.out.println("\nYou can now navigate through execution history with:");
+                            System.out.println("  - forward: go to next step");
+                            System.out.println("  - back: go to previous step");
+                            System.out.println("  - history: show execution history overview");
+
+                            // Passer en mode replay
+                            state.setRecordingMode(false);
+                            state.setReplayMode(true);
+
+                            // Afficher le premier état
+                            if (state.getExecutionHistory().size() > 0) {
+                                System.out.println("\n" + state.getExecutionHistory().getCurrentSnapshot().toDetailedString());
+                            }
+
+                            // Entrer en mode interactif pour naviguer dans l'historique
+                            replayMode();
+                        }
+
                         printProcessOutput();
                         return;
                     }
 
                     if (event instanceof ClassPrepareEvent) {
                         System.out.println("Class loaded: " + debugClass.getName());
-                        // Placer un breakpoint initial si nécessaire
-                        setInitialBreakpoint();
+                        // En mode recording, configurer un MethodEntryRequest pour démarrer dès main()
+                        if (state.isRecordingMode()) {
+                            setMainMethodEntry();
+                        }
                     }
 
                     if (event instanceof BreakpointEvent) {
+                        // Mode normal (pas de recording)
                         handleBreakpoint((BreakpointEvent) event);
                     }
 
                     if (event instanceof StepEvent) {
                         StepEvent se = (StepEvent) event;
-                        System.out.println("\nStepped to: " + se.location().sourceName()
-                                + ":" + se.location().lineNumber());
 
-                        // Supprimer la StepRequest après usage
-                        vm.eventRequestManager().deleteEventRequest(event.request());
+                        if (state.isRecordingMode()) {
+                            // En mode recording : enregistrer automatiquement et continuer
+                            recordSnapshot(se.thread());
+                            // NE PAS supprimer la StepRequest pour continuer à enregistrer
+                        } else {
+                            // En mode normal : afficher et attendre commande
+                            System.out.println("\nStepped to: " + se.location().sourceName()
+                                    + ":" + se.location().lineNumber());
 
-                        handleUserCommand(se.thread());
+                            // Supprimer la StepRequest après usage
+                            vm.eventRequestManager().deleteEventRequest(event.request());
+
+                            handleUserCommand(se.thread());
+                        }
                     }
 
                     if (event instanceof MethodEntryEvent) {
-                        handleMethodEntry((MethodEntryEvent) event);
+                        MethodEntryEvent mee = (MethodEntryEvent) event;
+
+                        if (state.isRecordingMode() && mee.method().name().equals("main")) {
+                            System.out.println("Starting auto-recording from main() entry...");
+                            // Créer un StepRequest automatique
+                            createAutoStepRequest(mee.thread());
+                            // Enregistrer le premier snapshot
+                            recordSnapshot(mee.thread());
+                            // Désactiver le MethodEntryRequest maintenant qu'on a démarré
+                            vm.eventRequestManager().deleteEventRequest(event.request());
+                        } else {
+                            // Mode normal
+                            handleMethodEntry(mee);
+                        }
                     }
 
                 } catch (Exception e) {
@@ -240,6 +345,50 @@ public class ScriptableDebugger {
             writer.flush();
         } catch (IOException e) {
             System.err.println("Error reading VM output: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Mode replay : permet à l'utilisateur de naviguer dans l'historique d'exécution
+     * avec les commandes de débogage habituelles (step, step-over, continue, break, etc.)
+     */
+    private void replayMode() {
+        System.out.println("\n=== REPLAY MODE ===");
+        System.out.println("You can now use standard debugger commands to navigate the recorded execution:");
+        System.out.println("  step        - step into (go to next recorded state)");
+        System.out.println("  step-over   - step over (skip to next state at same or lower stack depth)");
+        System.out.println("  continue    - continue until breakpoint or end");
+        System.out.println("  break <file> <line> - set a breakpoint");
+        System.out.println("  breakpoints - list breakpoints");
+        System.out.println("  back        - go back one step");
+        System.out.println("  forward     - go forward one step");
+        System.out.println("  history     - show execution overview");
+        System.out.println("  stack       - show call stack");
+        System.out.println("  frame       - show current frame");
+        System.out.println("  quit        - exit replay mode");
+
+        Scanner sc = new Scanner(System.in);
+
+        while (true) {
+            System.out.print("\ndbg> ");
+            String input = sc.nextLine().trim();
+
+            if (input.isEmpty()) {
+                continue;
+            }
+
+            if (input.equals("quit") || input.equals("exit")) {
+                System.out.println("Exiting replay mode.");
+                break;
+            }
+
+            try {
+                Command command = interpreter.parse(input);
+                CommandResult result = command.execute(state);
+                displayResult(result);
+            } catch (Exception e) {
+                System.err.println("Error: " + e.getMessage());
+            }
         }
     }
 }
