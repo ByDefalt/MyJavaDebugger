@@ -2,74 +2,142 @@ package commands;
 
 import java.util.*;
 
-// Interpréteur de commandes
+/**
+ * Interpréteur de commandes refactoré selon OCP
+ * Les commandes peuvent être enregistrées dynamiquement
+ */
 public class CommandInterpreter {
-    private Map<String, CommandFactory> commandFactories;
+
+    private final Map<String, CommandFactory> commandFactories;
+    private final Map<String, String> commandDescriptions;
+    private final Map<String, CommandCategory> commandCategories;
+
+    public enum CommandCategory {
+        NAVIGATION("Navigation commands"),
+        HISTORY("History navigation (replay mode)"),
+        INSPECTION("Code inspection"),
+        VARIABLES("Variable inspection"),
+        BREAKPOINTS("Breakpoint management");
+
+        private final String description;
+
+        CommandCategory(String description) {
+            this.description = description;
+        }
+
+        public String getDescription() {
+            return description;
+        }
+    }
 
     public CommandInterpreter() {
         this.commandFactories = new HashMap<>();
-        registerCommands();
+        this.commandDescriptions = new HashMap<>();
+        this.commandCategories = new HashMap<>();
+        registerBuiltinCommands();
+
+        // Enregistrer la commande help qui nécessite une référence à l'interpréteur
+        final CommandInterpreter self = this;
+        registerCommand("help", args -> {
+            if (args.length > 0) {
+                return new HelpCommand(self, args[0]);
+            }
+            return new HelpCommand(self);
+        }, "Show help: help [command]", CommandCategory.NAVIGATION);
     }
 
-    private void registerCommands() {
+    /**
+     * Enregistre une nouvelle commande (Open/Closed Principle)
+     */
+    public void registerCommand(String name, CommandFactory factory,
+            String description, CommandCategory category) {
+        commandFactories.put(name, factory);
+        commandDescriptions.put(name, description);
+        commandCategories.put(name, category);
+    }
+
+    /**
+     * Enregistre une commande simple sans arguments
+     */
+    public void registerSimpleCommand(String name, Command command,
+            String description, CommandCategory category) {
+        registerCommand(name, args -> command, description, category);
+    }
+
+    private void registerBuiltinCommands() {
         // Navigation
-        commandFactories.put("step", args -> new StepCommand());
-        commandFactories.put("step-over", args -> new StepOverCommand());
-        commandFactories.put("continue", args -> new ContinueCommand());
+        registerCommand("step", args -> new StepCommand(),
+            "Step into next instruction", CommandCategory.NAVIGATION);
+        registerCommand("step-over", args -> new StepOverCommand(),
+            "Step over current instruction", CommandCategory.NAVIGATION);
+        registerCommand("continue", args -> new ContinueCommand(),
+            "Continue execution", CommandCategory.NAVIGATION);
 
         // History navigation (replay mode)
-        commandFactories.put("back", args -> new BackCommand());
-        commandFactories.put("forward", args -> new ForwardCommand());
-        commandFactories.put("history", args -> new HistoryCommand());
+        registerCommand("back", args -> new BackCommand(),
+            "Go back one step in history", CommandCategory.HISTORY);
+        registerCommand("forward", args -> new ForwardCommand(),
+            "Go forward one step in history", CommandCategory.HISTORY);
+        registerCommand("history", args -> new HistoryCommand(),
+            "Show execution history", CommandCategory.HISTORY);
 
         // Inspection
-        commandFactories.put("frame", args -> new FrameCommand());
-        commandFactories.put("temporaries", args -> new TemporariesCommand());
-        commandFactories.put("stack", args -> new StackCommand());
-        commandFactories.put("receiver", args -> new ReceiverCommand());
-        commandFactories.put("sender", args -> new SenderCommand());
-        commandFactories.put("receiver-variables", args -> new ReceiverVariablesCommand());
-        commandFactories.put("method", args -> new MethodCommand());
-        commandFactories.put("arguments", args -> new ArgumentsCommand());
+        registerCommand("frame", args -> new FrameCommand(),
+            "Show current frame", CommandCategory.INSPECTION);
+        registerCommand("temporaries", args -> new TemporariesCommand(),
+            "Show temporary variables", CommandCategory.INSPECTION);
+        registerCommand("stack", args -> new StackCommand(),
+            "Show call stack", CommandCategory.INSPECTION);
+        registerCommand("receiver", args -> new ReceiverCommand(),
+            "Show receiver (this)", CommandCategory.INSPECTION);
+        registerCommand("sender", args -> new SenderCommand(),
+            "Show sender frame", CommandCategory.INSPECTION);
+        registerCommand("receiver-variables", args -> new ReceiverVariablesCommand(),
+            "Show receiver's instance variables", CommandCategory.INSPECTION);
+        registerCommand("method", args -> new MethodCommand(),
+            "Show current method", CommandCategory.INSPECTION);
+        registerCommand("arguments", args -> new ArgumentsCommand(),
+            "Show method arguments", CommandCategory.INSPECTION);
 
         // Variables
-        commandFactories.put("print-var", args -> {
+        registerCommand("print-var", args -> {
             if (args.length < 1) {
                 throw new IllegalArgumentException("print-var requires variable name");
             }
             return new PrintVarCommand(args[0]);
-        });
+        }, "Print variable value: print-var <name>", CommandCategory.VARIABLES);
 
         // Breakpoints
-        commandFactories.put("break", args -> {
+        registerCommand("break", args -> {
             if (args.length < 2) {
                 throw new IllegalArgumentException("break requires fileName and lineNumber");
             }
             return new BreakCommand(args[0], Integer.parseInt(args[1]));
-        });
+        }, "Set breakpoint: break <file> <line>", CommandCategory.BREAKPOINTS);
 
-        commandFactories.put("break-once", args -> {
+        registerCommand("break-once", args -> {
             if (args.length < 2) {
                 throw new IllegalArgumentException("break-once requires fileName and lineNumber");
             }
             return new BreakOnceCommand(args[0], Integer.parseInt(args[1]));
-        });
+        }, "Set one-time breakpoint: break-once <file> <line>", CommandCategory.BREAKPOINTS);
 
-        commandFactories.put("break-on-count", args -> {
+        registerCommand("break-on-count", args -> {
             if (args.length < 3) {
                 throw new IllegalArgumentException("break-on-count requires fileName, lineNumber, and count");
             }
             return new BreakOnCountCommand(args[0], Integer.parseInt(args[1]), Integer.parseInt(args[2]));
-        });
+        }, "Set count breakpoint: break-on-count <file> <line> <count>", CommandCategory.BREAKPOINTS);
 
-        commandFactories.put("breakpoints", args -> new BreakpointsCommand());
+        registerCommand("breakpoints", args -> new BreakpointsCommand(),
+            "List all breakpoints", CommandCategory.BREAKPOINTS);
 
-        commandFactories.put("break-before-method-call", args -> {
+        registerCommand("break-before-method-call", args -> {
             if (args.length < 1) {
                 throw new IllegalArgumentException("break-before-method-call requires method name");
             }
             return new BreakBeforeMethodCallCommand(args[0]);
-        });
+        }, "Break before method call: break-before-method-call <method>", CommandCategory.BREAKPOINTS);
     }
 
     public Command parse(String input) throws Exception {
@@ -91,6 +159,52 @@ public class CommandInterpreter {
 
     public Set<String> getAvailableCommands() {
         return commandFactories.keySet();
+    }
+
+    /**
+     * Retourne les commandes groupées par catégorie
+     */
+    public Map<CommandCategory, List<String>> getCommandsByCategory() {
+        Map<CommandCategory, List<String>> result = new EnumMap<>(CommandCategory.class);
+
+        for (CommandCategory cat : CommandCategory.values()) {
+            result.put(cat, new ArrayList<>());
+        }
+
+        for (Map.Entry<String, CommandCategory> entry : commandCategories.entrySet()) {
+            result.get(entry.getValue()).add(entry.getKey());
+        }
+
+        return result;
+    }
+
+    /**
+     * Retourne l'aide pour une commande
+     */
+    public String getHelp(String commandName) {
+        return commandDescriptions.getOrDefault(commandName, "No description available");
+    }
+
+    /**
+     * Retourne l'aide complète formatée
+     */
+    public String getFullHelp() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Available commands:\n\n");
+
+        for (CommandCategory cat : CommandCategory.values()) {
+            List<String> commands = getCommandsByCategory().get(cat);
+            if (!commands.isEmpty()) {
+                sb.append("=== ").append(cat.getDescription()).append(" ===\n");
+                for (String cmd : commands) {
+                    sb.append("  ").append(cmd).append(" - ")
+                      .append(commandDescriptions.get(cmd)).append("\n");
+                }
+                sb.append("\n");
+            }
+        }
+
+        return sb.toString();
     }
 }
 

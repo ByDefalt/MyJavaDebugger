@@ -31,3 +31,11 @@ tasks.register<JavaExec>("runDebugger") {
     mainClass.set("dbg.JDISimpleDebugger")
     classpath = sourceSets["main"].runtimeClasspath
 }
+
+tasks.register<JavaExec>("runGUI") {
+    group = "application"
+    description = "Run the Debugger with GUI"
+    mainClass.set("gui.JDISimpleDebuggerGUI")
+    classpath = sourceSets["main"].runtimeClasspath
+}
+

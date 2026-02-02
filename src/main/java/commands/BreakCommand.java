@@ -1,17 +1,18 @@
 package commands;
 
-
-import com.sun.jdi.Location;
-import com.sun.jdi.ReferenceType;
-import com.sun.jdi.request.BreakpointRequest;
+import managers.BreakpointManager;
 import models.Breakpoint;
 import models.DebuggerState;
 
-import java.util.List;
+import java.util.Optional;
 
+/**
+ * Commande pour créer un breakpoint normal
+ */
 public class BreakCommand implements Command {
-    private String fileName;
-    private int lineNumber;
+
+    private final String fileName;
+    private final int lineNumber;
 
     public BreakCommand(String fileName, int lineNumber) {
         this.fileName = fileName;
@@ -20,42 +21,15 @@ public class BreakCommand implements Command {
 
     @Override
     public CommandResult execute(DebuggerState state) throws Exception {
-        // Normaliser le nom de fichier (ajouter .java si absent)
-        String normalizedFileName = fileName;
-        if (!normalizedFileName.endsWith(".java")) {
-            normalizedFileName = normalizedFileName + ".java";
+        BreakpointManager manager = new BreakpointManager(state);
+        Optional<Breakpoint> bp = manager.createBreakpoint(fileName, lineNumber);
+
+        if (bp.isPresent()) {
+            String mode = state.isReplayMode() ? " (replay mode)" : "";
+            return CommandResult.success("Breakpoint set" + mode, bp.get());
         }
 
-        // En mode replay, simplement enregistrer le breakpoint logique
-        if (state.isReplayMode()) {
-            String key = normalizedFileName + ":" + lineNumber;
-            Breakpoint bp = new Breakpoint(normalizedFileName, lineNumber, null,
-                    Breakpoint.BreakpointType.NORMAL);
-            state.getBreakpoints().put(key, bp);
-            return CommandResult.success("Breakpoint set (replay mode) at " + key, bp);
-        }
-
-        // Mode normal : créer un vrai BreakpointRequest
-        for (ReferenceType t : state.getVm().allClasses()) {
-            if (t.sourceName().equals(normalizedFileName) || t.sourceName().equals(fileName)) {
-                List<Location> locs = t.locationsOfLine(lineNumber);
-                if (locs.isEmpty()) {
-                    return CommandResult.error("No code at line " + lineNumber);
-                }
-
-                Location loc = locs.get(0);
-                BreakpointRequest req = state.getVm().eventRequestManager()
-                        .createBreakpointRequest(loc);
-                req.enable();
-
-                Breakpoint bp = new Breakpoint(normalizedFileName, lineNumber, req,
-                        Breakpoint.BreakpointType.NORMAL);
-                state.getBreakpoints().put(normalizedFileName + ":" + lineNumber, bp);
-
-                return CommandResult.success("Breakpoint set", bp);
-            }
-        }
-        return CommandResult.error("Class not found for file: " + fileName);
+        return CommandResult.error("Could not set breakpoint at " + fileName + ":" + lineNumber);
     }
 }
 

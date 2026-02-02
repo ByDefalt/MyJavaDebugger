@@ -1,18 +1,19 @@
 package commands;
 
-
-import com.sun.jdi.Location;
-import com.sun.jdi.ReferenceType;
-import com.sun.jdi.request.BreakpointRequest;
+import managers.BreakpointManager;
 import models.Breakpoint;
 import models.DebuggerState;
 
-import java.util.List;
+import java.util.Optional;
 
+/**
+ * Commande pour créer un breakpoint qui s'active après N passages
+ */
 class BreakOnCountCommand implements Command {
-    private String fileName;
-    private int lineNumber;
-    private int count;
+
+    private final String fileName;
+    private final int lineNumber;
+    private final int count;
 
     public BreakOnCountCommand(String fileName, int lineNumber, int count) {
         this.fileName = fileName;
@@ -22,26 +23,14 @@ class BreakOnCountCommand implements Command {
 
     @Override
     public CommandResult execute(DebuggerState state) throws Exception {
-        for (ReferenceType t : state.getVm().allClasses()) {
-            if (t.sourceName().equals(fileName)) {
-                List<Location> locs = t.locationsOfLine(lineNumber);
-                if (locs.isEmpty()) {
-                    return CommandResult.error("No code at line " + lineNumber);
-                }
+        BreakpointManager manager = new BreakpointManager(state);
+        Optional<Breakpoint> bp = manager.createBreakpointOnCount(fileName, lineNumber, count);
 
-                Location loc = locs.get(0);
-                BreakpointRequest req = state.getVm().eventRequestManager()
-                        .createBreakpointRequest(loc);
-                req.enable();
-
-                Breakpoint bp = new Breakpoint(fileName, lineNumber, req,
-                        Breakpoint.BreakpointType.ON_COUNT, count);
-                state.getBreakpoints().put(fileName + ":" + lineNumber, bp);
-
-                return CommandResult.success("Count breakpoint set", bp);
-            }
+        if (bp.isPresent()) {
+            return CommandResult.success("Count breakpoint set (activates after " + count + " hits)", bp.get());
         }
-        return CommandResult.error("Class not found for file: " + fileName);
+
+        return CommandResult.error("Could not set breakpoint at " + fileName + ":" + lineNumber);
     }
 }
 
