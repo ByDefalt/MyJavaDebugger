@@ -5,6 +5,8 @@ import java.awt.*;
 import java.awt.event.*;
 import java.util.*;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class SourceCodePanel extends JPanel {
     private List<String> sourceLines;
@@ -135,16 +137,63 @@ public class SourceCodePanel extends JPanel {
         }
 
         private void drawSyntaxLine(Graphics2D g2, String line, int x, int y) {
-            String[] keywords = {"public", "private", "class", "void", "static", "new", "return", "if", "for", "while", "int", "String", "boolean"};
-            String[] tokens = line.split("(?<=\\W)|(?=\\W)");
+            // Configuration des couleurs Darcula
+            final Color KEYWORD = new Color(204, 120, 50);
+            final Color STRING = new Color(106, 135, 89);
+            final Color NUMBER = new Color(104, 151, 187);
+            final Color COMMENT = new Color(128, 128, 128);
+            final Color ANNOTATION = new Color(187, 181, 41);
+            final Color METHOD = new Color(255, 198, 109);
+            final Color DEFAULT = new Color(169, 183, 198);
+
+            Set<String> keywords = new HashSet<>(Arrays.asList(
+                    "public", "private", "protected", "class", "void", "static", "final",
+                    "new", "return", "if", "else", "for", "while", "int", "double",
+                    "float", "boolean", "import", "package", "this", "true", "false"
+            ));
+
+            // Regex robuste : Capture les commentaires, les strings, les mots/nombres, ou le reste
+            Pattern pattern = Pattern.compile("//.*|\"[^\"]*\"|\\b\\w+\\b|\\s+|.");
+            Matcher matcher = pattern.matcher(line);
+
             int currentX = x;
 
-            for (String token : tokens) {
-                if (Arrays.asList(keywords).contains(token.trim())) g2.setColor(new Color(86, 156, 214)); // Blue
-                else if (token.matches("\\d+")) g2.setColor(new Color(181, 206, 168)); // Green-yellow
-                else if (token.startsWith("\"")) g2.setColor(new Color(206, 145, 120)); // Orange-ish
-                else if (line.trim().startsWith("//")) g2.setColor(new Color(106, 153, 85)); // Comment
-                else g2.setColor(CODE_FG);
+            while (matcher.find()) {
+                String token = matcher.group();
+
+                // 1. Détection des Commentaires
+                if (token.startsWith("//")) {
+                    g2.setColor(COMMENT);
+                }
+                // 2. Détection des Strings
+                else if (token.startsWith("\"")) {
+                    g2.setColor(STRING);
+                }
+                // 3. Détection des Nombres
+                else if (token.matches("\\d+")) {
+                    g2.setColor(NUMBER);
+                }
+                // 4. Détection des Mots-clés
+                else if (keywords.contains(token)) {
+                    g2.setColor(KEYWORD);
+                }
+                // 5. Détection des Annotations (ex: @Override)
+                else if (token.startsWith("@") || (line.contains("@") && line.indexOf("@") < line.indexOf(token) && token.matches("\\w+"))) {
+                    // Simplification : si on est juste après un @
+                    g2.setColor(ANNOTATION);
+                }
+                // 6. Détection des Méthodes (mot suivi d'une parenthèse)
+                else if (token.matches("\\w+")) {
+                    int end = matcher.end();
+                    if (end < line.length() && line.charAt(end) == '(') {
+                        g2.setColor(METHOD);
+                    } else {
+                        g2.setColor(DEFAULT);
+                    }
+                }
+                else {
+                    g2.setColor(DEFAULT);
+                }
 
                 g2.drawString(token, currentX, y);
                 currentX += g2.getFontMetrics().stringWidth(token);

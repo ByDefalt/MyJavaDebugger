@@ -56,10 +56,14 @@ public class ScriptableDebuggerGUI implements DebuggerGUI.DebuggerCallback {
                 String line;
                 while (isRunning && (line = reader.readLine()) != null) {
                     String finalLine = line;
-                    gui.appendOutput(finalLine + "\n");
+                    try {
+                        gui.appendOutput(finalLine + "\n");
+                    }catch (Exception e){
+
+                    }
                 }
             } catch (IOException e) {
-                if (isRunning) gui.appendOutput("⚠Erreur de lecture console: " + e.getMessage() + "\n");
+                if (isRunning) gui.appendOutput("Erreur de lecture console: " + e.getMessage() + "\n");
             }
         });
 
