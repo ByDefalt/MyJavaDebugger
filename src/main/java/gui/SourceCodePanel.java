@@ -1,6 +1,5 @@
 package gui;
 
-
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
@@ -13,39 +12,35 @@ public class SourceCodePanel extends JPanel {
     private Set<Integer> breakpoints;
     private BreakpointClickListener breakpointListener;
 
-    // Constantes de style
-    private static final Color BACKGROUND_COLOR = new Color(43, 43, 43);
-    private static final Color LINE_NUMBER_BG = new Color(60, 60, 60);
-    private static final Color LINE_NUMBER_FG = new Color(128, 128, 128);
-    private static final Color CODE_FG = new Color(220, 220, 220);
-    private static final Color CURRENT_LINE_BG = new Color(255, 255, 0, 80);
-    private static final Color CURRENT_LINE_BORDER = new Color(255, 200, 0);
-    private static final Color BREAKPOINT_COLOR = new Color(220, 50, 50);
-    private static final Color BREAKPOINT_BORDER = new Color(180, 30, 30);
+    // Palette de couleurs "Modern Dark"
+    private static final Color BG_COLOR = new Color(30, 30, 30);
+    private static final Color LINE_NUM_BG = new Color(35, 35, 35);
+    private static final Color LINE_NUM_FG = new Color(133, 133, 133);
+    private static final Color CODE_FG = new Color(212, 212, 212);
+    private static final Color HIGHLIGHT_LINE = new Color(45, 45, 45);
+    private static final Color CURRENT_LINE_MARKER = new Color(255, 230, 0);
+    private static final Color BREAKPOINT_RED = new Color(230, 50, 50);
 
-    private static final int LINE_HEIGHT = 20;
-    private static final int LINE_NUMBER_WIDTH = 50;
-    private static final int MARGIN = 5;
+    private static final int LINE_HEIGHT = 22;
+    private static final int GUTTER_WIDTH = 55;
 
     private JScrollPane scrollPane;
     private CodeDisplayPanel codePanel;
 
     public interface BreakpointClickListener {
-        void onBreakpointToggle(int lineNumber);
+        void onBreakpointToggle(int lineNumber) throws Exception;
     }
 
     public SourceCodePanel() {
         sourceLines = new ArrayList<>();
         breakpoints = new HashSet<>();
-
         setLayout(new BorderLayout());
-        setBorder(BorderFactory.createTitledBorder("Source Code"));
+        setBackground(BG_COLOR);
 
         codePanel = new CodeDisplayPanel();
         scrollPane = new JScrollPane(codePanel);
-        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
-        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-
+        scrollPane.setBorder(null);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
         add(scrollPane, BorderLayout.CENTER);
     }
 
@@ -58,35 +53,15 @@ public class SourceCodePanel extends JPanel {
     public void setCurrentLine(int line) {
         this.currentLine = line;
         codePanel.repaint();
-
-        // Scroll vers la ligne courante
         if (line > 0 && line <= sourceLines.size()) {
-            Rectangle rect = new Rectangle(0, (line - 1) * LINE_HEIGHT - 100,
-                    codePanel.getWidth(), LINE_HEIGHT + 200);
+            Rectangle rect = new Rectangle(0, (line - 1) * LINE_HEIGHT - 100, codePanel.getWidth(), LINE_HEIGHT + 200);
             codePanel.scrollRectToVisible(rect);
         }
     }
 
-    public void addBreakpoint(int line) {
-        breakpoints.add(line);
-        codePanel.repaint();
-    }
-
-    public void removeBreakpoint(int line) {
-        breakpoints.remove(line);
-        codePanel.repaint();
-    }
-
     public void toggleBreakpoint(int line) {
-        if (breakpoints.contains(line)) {
-            removeBreakpoint(line);
-        } else {
-            addBreakpoint(line);
-        }
-    }
-
-    public void clearBreakpoints() {
-        breakpoints.clear();
+        if (breakpoints.contains(line)) breakpoints.remove(line);
+        else breakpoints.add(line);
         codePanel.repaint();
     }
 
@@ -94,67 +69,29 @@ public class SourceCodePanel extends JPanel {
         this.breakpointListener = listener;
     }
 
-    // ========================================================================
-    // Panel interne pour afficher le code
-    // ========================================================================
-
     private class CodeDisplayPanel extends JPanel {
-
         public CodeDisplayPanel() {
-            setBackground(BACKGROUND_COLOR);
-
-            // Gestion des clics pour les breakpoints
+            setBackground(BG_COLOR);
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mousePressed(MouseEvent e) {
-                    handleClick(e);
-                }
-            });
-
-            // Menu contextuel
-            setComponentPopupMenu(createPopupMenu());
-        }
-
-        private void handleClick(MouseEvent e) {
-            int clickedLine = (e.getY() / LINE_HEIGHT) + 1;
-
-            if (clickedLine > 0 && clickedLine <= sourceLines.size()) {
-                // Clic dans la zone des numéros de ligne
-                if (e.getX() <= LINE_NUMBER_WIDTH) {
-                    toggleBreakpoint(clickedLine);
-
-                    if (breakpointListener != null) {
-                        breakpointListener.onBreakpointToggle(clickedLine);
-                    }
-                }
-            }
-        }
-
-        private JPopupMenu createPopupMenu() {
-            JPopupMenu menu = new JPopupMenu();
-
-            JMenuItem toggleBP = new JMenuItem("Toggle Breakpoint");
-            toggleBP.addActionListener(e -> {
-                Point mousePos = getMousePosition();
-                if (mousePos != null) {
-                    int line = (mousePos.y / LINE_HEIGHT) + 1;
-                    if (line > 0 && line <= sourceLines.size()) {
-                        toggleBreakpoint(line);
+                    int clickedLine = (e.getY() / LINE_HEIGHT) + 1;
+                    if (clickedLine > 0 && clickedLine <= sourceLines.size() && e.getX() <= GUTTER_WIDTH) {
+                        toggleBreakpoint(clickedLine);
                         if (breakpointListener != null) {
-                            breakpointListener.onBreakpointToggle(line);
+                            try {
+                                breakpointListener.onBreakpointToggle(clickedLine);
+                            } catch (Exception ex) {
+                                throw new RuntimeException(ex);
+                            }
                         }
                     }
                 }
             });
-            menu.add(toggleBP);
-
-            return menu;
         }
 
         public void updateSize() {
-            int height = sourceLines.size() * LINE_HEIGHT + MARGIN * 2;
-            int width = 800; // Largeur minimale
-            setPreferredSize(new Dimension(width, height));
+            setPreferredSize(new Dimension(1000, sourceLines.size() * LINE_HEIGHT + 50));
             revalidate();
         }
 
@@ -162,163 +99,55 @@ public class SourceCodePanel extends JPanel {
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
             Graphics2D g2 = (Graphics2D) g;
+            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-            // Anti-aliasing pour un rendu plus lisse
-            g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING,
-                    RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            g2.setRenderingHint(RenderingHints.KEY_RENDERING,
-                    RenderingHints.VALUE_RENDER_QUALITY);
-
-            if (sourceLines.isEmpty()) {
-                drawEmptyMessage(g2);
-                return;
-            }
-
-            Font font = new Font("Consolas", Font.PLAIN, 13);
-            if (font.getFamily().equals("Dialog")) {
-                font = new Font("Monospaced", Font.PLAIN, 13);
-            }
+            Font font = new Font("JetBrains Mono", Font.PLAIN, 13);
+            if (font.getFamily().equals("Dialog")) font = new Font("Consolas", Font.PLAIN, 13);
             g2.setFont(font);
-
-            FontMetrics fm = g2.getFontMetrics();
-            int textOffset = fm.getAscent();
 
             for (int i = 0; i < sourceLines.size(); i++) {
-                int lineNumber = i + 1;
                 int y = i * LINE_HEIGHT;
+                int lineNum = i + 1;
 
-                // Dessiner la ligne courante en surbrillance
-                if (lineNumber == currentLine) {
-                    drawCurrentLine(g2, y);
+                // Highlight current line
+                if (lineNum == currentLine) {
+                    g2.setColor(HIGHLIGHT_LINE);
+                    g2.fillRect(0, y, getWidth(), LINE_HEIGHT);
+                    g2.setColor(CURRENT_LINE_MARKER);
+                    g2.fillRect(0, y, 3, LINE_HEIGHT);
                 }
 
-                // Dessiner la zone des numéros de ligne
-                drawLineNumberArea(g2, lineNumber, y);
+                // Gutter
+                g2.setColor(LINE_NUM_BG);
+                g2.fillRect(0, y, GUTTER_WIDTH, LINE_HEIGHT);
+                g2.setColor(LINE_NUM_FG);
+                g2.drawString(String.format("%3d", lineNum), 10, y + 16);
 
-                // Dessiner le breakpoint si présent
-                if (breakpoints.contains(lineNumber)) {
-                    drawBreakpoint(g2, y);
+                // Breakpoint
+                if (breakpoints.contains(lineNum)) {
+                    g2.setColor(BREAKPOINT_RED);
+                    g2.fillOval(38, y + 5, 10, 10);
                 }
 
-                // Dessiner le code
-                drawCodeLine(g2, sourceLines.get(i), y, textOffset, font);
+                // Code
+                drawSyntaxLine(g2, sourceLines.get(i), GUTTER_WIDTH + 15, y + 16);
             }
         }
 
-        private void drawEmptyMessage(Graphics2D g2) {
-            g2.setColor(LINE_NUMBER_FG);
-            g2.setFont(new Font("SansSerif", Font.ITALIC, 14));
-            String msg = "No source code available";
-            FontMetrics fm = g2.getFontMetrics();
-            int x = (getWidth() - fm.stringWidth(msg)) / 2;
-            int y = getHeight() / 2;
-            g2.drawString(msg, x, y);
-        }
-
-        private void drawCurrentLine(Graphics2D g2, int y) {
-            // Fond de la ligne courante
-            g2.setColor(CURRENT_LINE_BG);
-            g2.fillRect(0, y, getWidth(), LINE_HEIGHT);
-
-            // Bordure gauche de la ligne courante
-            g2.setColor(CURRENT_LINE_BORDER);
-            g2.fillRect(0, y, 3, LINE_HEIGHT);
-        }
-
-        private void drawLineNumberArea(Graphics2D g2, int lineNumber, int y) {
-            // Fond de la zone des numéros
-            g2.setColor(LINE_NUMBER_BG);
-            g2.fillRect(0, y, LINE_NUMBER_WIDTH, LINE_HEIGHT);
-
-            // Séparateur vertical
-            g2.setColor(new Color(80, 80, 80));
-            g2.drawLine(LINE_NUMBER_WIDTH, y, LINE_NUMBER_WIDTH, y + LINE_HEIGHT);
-
-            // Numéro de ligne
-            g2.setColor(LINE_NUMBER_FG);
-            String lineNum = String.valueOf(lineNumber);
-            FontMetrics fm = g2.getFontMetrics();
-            int numWidth = fm.stringWidth(lineNum);
-            int textX = LINE_NUMBER_WIDTH - numWidth - 10;
-            int textY = y + (LINE_HEIGHT + fm.getAscent()) / 2 - 2;
-            g2.drawString(lineNum, textX, textY);
-        }
-
-        private void drawBreakpoint(Graphics2D g2, int y) {
-            int size = 12;
-            int x = 8;
-            int yCenter = y + LINE_HEIGHT / 2;
-
-            // Cercle rouge pour le breakpoint
-            g2.setColor(BREAKPOINT_COLOR);
-            g2.fillOval(x - size/2, yCenter - size/2, size, size);
-
-            // Bordure
-            g2.setColor(BREAKPOINT_BORDER);
-            g2.setStroke(new BasicStroke(2));
-            g2.drawOval(x - size/2, yCenter - size/2, size, size);
-            g2.setStroke(new BasicStroke(1));
-        }
-
-        private void drawCodeLine(Graphics2D g2, String line, int y, int textOffset, Font font) {
-            g2.setColor(CODE_FG);
-            g2.setFont(font);
-
-            int textX = LINE_NUMBER_WIDTH + 10;
-            int textY = y + (LINE_HEIGHT + textOffset) / 2 - 2;
-
-            // Colorisation syntaxique basique
-            drawSyntaxHighlightedLine(g2, line, textX, textY);
-        }
-
-        private void drawSyntaxHighlightedLine(Graphics2D g2, String line, int x, int y) {
-            // Couleurs pour la colorisation syntaxique
-            Color keywordColor = new Color(204, 120, 50);
-            Color stringColor = new Color(106, 135, 89);
-            Color commentColor = new Color(128, 128, 128);
-            Color numberColor = new Color(104, 151, 187);
-
-            String[] keywords = {"public", "private", "static", "void", "class", "int",
-                    "double", "String", "return", "if", "else", "for", "while",
-                    "new", "this", "super", "import", "package"};
-
-            // Détection de commentaires
-            if (line.trim().startsWith("//")) {
-                g2.setColor(commentColor);
-                g2.drawString(line, x, y);
-                return;
-            }
-
-            // Colorisation simple mot par mot
-            FontMetrics fm = g2.getFontMetrics();
+        private void drawSyntaxLine(Graphics2D g2, String line, int x, int y) {
+            String[] keywords = {"public", "private", "class", "void", "static", "new", "return", "if", "for", "while", "int", "String", "boolean"};
+            String[] tokens = line.split("(?<=\\W)|(?=\\W)");
             int currentX = x;
 
-            String[] tokens = line.split("(?<=\\W)|(?=\\W)");
-
             for (String token : tokens) {
-                Color color = CODE_FG;
+                if (Arrays.asList(keywords).contains(token.trim())) g2.setColor(new Color(86, 156, 214)); // Blue
+                else if (token.matches("\\d+")) g2.setColor(new Color(181, 206, 168)); // Green-yellow
+                else if (token.startsWith("\"")) g2.setColor(new Color(206, 145, 120)); // Orange-ish
+                else if (line.trim().startsWith("//")) g2.setColor(new Color(106, 153, 85)); // Comment
+                else g2.setColor(CODE_FG);
 
-                // Keywords
-                for (String keyword : keywords) {
-                    if (token.equals(keyword)) {
-                        color = keywordColor;
-                        break;
-                    }
-                }
-
-                // Strings
-                if (token.startsWith("\"") || token.startsWith("'")) {
-                    color = stringColor;
-                }
-
-                // Numbers
-                if (token.matches("\\d+")) {
-                    color = numberColor;
-                }
-
-                g2.setColor(color);
                 g2.drawString(token, currentX, y);
-                currentX += fm.stringWidth(token);
+                currentX += g2.getFontMetrics().stringWidth(token);
             }
         }
     }

@@ -10,6 +10,13 @@ public class StepCommand implements Command {
         ThreadReference thread = state.getContext().getThread();
         StepRequest sr = state.getVm().eventRequestManager()
                 .createStepRequest(thread, StepRequest.STEP_LINE, StepRequest.STEP_INTO);
+
+        sr.addClassExclusionFilter("java.*");
+        sr.addClassExclusionFilter("javax.*");
+        sr.addClassExclusionFilter("sun.*");
+        sr.addClassExclusionFilter("com.sun.*");
+        sr.addClassExclusionFilter("jdk.*");
+
         sr.addCountFilter(1);
         sr.enable();
         return CommandResult.success("Step into next instruction", sr);
