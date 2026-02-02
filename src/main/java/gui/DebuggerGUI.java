@@ -125,12 +125,53 @@ public class DebuggerGUI extends JFrame {
         return btn;
     }
 
+    // Dans DebuggerGUI.java, modifiez createStackPanel()
     private JPanel createStackPanel() {
         callStackModel = new DefaultListModel<>();
         callStackList = new JList<>(callStackModel);
-        callStackList.setBackground(new Color(30, 30, 30));
-        callStackList.setForeground(new Color(200, 200, 200));
+        callStackList.setBackground(new Color(30, 30, 30)); //
+        callStackList.setForeground(new Color(200, 200, 200)); //
+
+        callStackList.setSelectionBackground(new Color(0, 122, 204, 150));
+        callStackList.setSelectionForeground(Color.WHITE);
+
+        // AJOUT : Détection du clic sur un élément de la pile
+        callStackList.addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) { // Évite le double déclenchement
+                int selectedIndex = callStackList.getSelectedIndex();
+                if (selectedIndex != -1) {
+                    onStackFrameSelected(selectedIndex);
+                }
+            }
+        });
+
         return wrapInPanel(new JScrollPane(callStackList), "CALL STACK");
+    }
+
+    // Dans DebuggerGUI.java
+    private void onStackFrameSelected(int index) {
+        if (state == null || state.getContext() == null) return;
+
+        try {
+            List<DebugFrame> frames = state.getContext().getCallStack().getFrames();
+            if (index < frames.size()) {
+                DebugFrame selectedFrame = frames.get(index);
+
+                // 1. Mettre à jour les variables pour ce frame spécifique
+                updateInspector(index);
+
+                // 2. Mettre à jour le code source
+                // Note: On suppose que DebugFrame contient la Location JDI
+                Location loc = selectedFrame.getLocation();
+                if (loc != null) {
+                    currentSourceFile = loc.sourceName();
+                    loadSource(loc);
+                    sourceCodePanel.setCurrentLine(loc.lineNumber());
+                }
+            }
+        } catch (Exception e) {
+            appendOutput("Erreur de navigation dans la stack : " + e.getMessage() + "\n");
+        }
     }
 
     private JPanel createInspectorPanel() {
@@ -139,6 +180,20 @@ public class DebuggerGUI extends JFrame {
         inspectorTree = new JTree(inspectorTreeModel);
         inspectorTree.setBackground(new Color(30, 30, 30));
         inspectorTree.setForeground(new Color(200, 200, 200));
+
+        // Dans createInspectorPanel()
+        inspectorTree.setCellRenderer(new DefaultTreeCellRenderer() {
+            @Override
+            public Component getTreeCellRendererComponent(JTree tree, Object value, boolean sel, boolean exp, boolean leaf, int row, boolean hasFocus) {
+                super.getTreeCellRendererComponent(tree, value, sel, exp, leaf, row, hasFocus);
+                if (leaf) {
+                    setIcon(UIManager.getIcon("Tree.leafIcon"));
+                } else {
+                    setIcon(UIManager.getIcon("Tree.closedIcon"));
+                }
+                return this;
+            }
+        });
         return wrapInPanel(new JScrollPane(inspectorTree), "VARIABLES");
     }
 
@@ -163,6 +218,7 @@ public class DebuggerGUI extends JFrame {
         return p;
     }
 
+    // Dans DebuggerGUI.java
     public void updateDebuggerState(DebuggerState state, Location loc, ThreadReference thread) {
         this.state = state;
         if (loc != null) {
@@ -170,8 +226,16 @@ public class DebuggerGUI extends JFrame {
                 currentSourceFile = loc.sourceName();
                 loadSource(loc);
                 updateStack();
+
+                // Force la sélection du premier élément (index 0) par défaut
+                if (callStackModel.getSize() > 0) {
+                    callStackList.setSelectedIndex(0);
+                }
+
                 updateInspector(0);
-            } catch (Exception e) { appendOutput("Error: " + e.getMessage() + "\n"); }
+            } catch (Exception e) {
+                appendOutput("Error: " + e.getMessage() + "\n");
+            }
         }
     }
 
@@ -191,16 +255,60 @@ public class DebuggerGUI extends JFrame {
         }
     }
 
+    // Dans DebuggerGUI.java
+
     private void updateInspector(int frameIdx) {
         inspectorRoot.removeAllChildren();
         if (state != null && state.getContext() != null) {
             List<DebugFrame> frames = state.getContext().getCallStack().getFrames();
             if (frameIdx < frames.size()) {
-                frames.get(frameIdx).getTemporaries().forEach(v ->
-                        inspectorRoot.add(new DefaultMutableTreeNode(v.getName() + " = " + v.getValueAsString())));
+                // On récupère les variables du frame
+                frames.get(frameIdx).getTemporaries().forEach(v -> {
+                    // On suppose ici que v.getValue() retourne l'objet com.sun.jdi.Value
+                    // Si votre modèle ne l'a pas, utilisez v.getRawValue() ou équivalent
+                    DefaultMutableTreeNode varNode = createVariableNode(v.getName(), v.getValue());
+                    inspectorRoot.add(varNode);
+                });
             }
         }
         inspectorTreeModel.reload();
+    }
+
+    private DefaultMutableTreeNode createVariableNode(String name, Value value) {
+        String display = name + " = " + formatValueShort(value);
+        DefaultMutableTreeNode node = new DefaultMutableTreeNode(display);
+
+        if (value instanceof ObjectReference) {
+            ObjectReference obj = (ObjectReference) value;
+
+            if (value instanceof ArrayReference) {
+                ArrayReference array = (ArrayReference) value;
+                for (int i = 0; i < array.length(); i++) {
+                    node.add(createVariableNode("[" + i + "]", array.getValue(i)));
+                }
+            }
+            else {
+                ReferenceType type = obj.referenceType();
+                for (Field field : type.allFields()) {
+                    try {
+                        Value fieldValue = obj.getValue(field);
+                        node.add(createVariableNode(field.name(), fieldValue));
+                    } catch (Exception e) {
+                        node.add(new DefaultMutableTreeNode(field.name() + " = <inaccessible>"));
+                    }
+                }
+            }
+        }
+        return node;
+    }
+
+    private String formatValueShort(Value v) {
+        if (v == null) return "null";
+        if (v instanceof StringReference) return "\"" + ((StringReference) v).value() + "\"";
+        if (v instanceof PrimitiveValue) return v.toString();
+        if (v instanceof ArrayReference) return "Array[" + ((ArrayReference) v).length() + "]";
+        if (v instanceof ObjectReference) return v.type().name() + " (id=" + ((ObjectReference) v).uniqueID() + ")";
+        return v.toString();
     }
 
     public void appendOutput(String txt) {
