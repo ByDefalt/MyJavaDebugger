@@ -17,6 +17,8 @@ public class JDISimpleDebuggee {
         machins.add(new Machin());
         truc(new Machin());
         printPower(x, power);
+        machins.remove(0);
+        System.out.println(description + " -- ending");
     }
     public static double power(int x, int power) {
         double powerX = Math.pow(x, power);

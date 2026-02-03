@@ -137,11 +137,80 @@ public class ExecutionSnapshot {
         if (value instanceof StringReference) {
             return "\"" + ((StringReference) value).value() + "\"";
         }
+        if (value instanceof ArrayReference) {
+            ArrayReference array = (ArrayReference) value;
+            return array.referenceType().name() + " (size = " + array.length() + ")";
+        }
         if (value instanceof ObjectReference) {
             ObjectReference obj = (ObjectReference) value;
-            return obj.referenceType().name() + "@" + obj.uniqueID();
+            String typeName = obj.referenceType().name();
+
+            // Tenter d'obtenir la taille pour les collections
+            if (isCollectionType(typeName)) {
+                int size = getCollectionSize(obj);
+                if (size >= 0) {
+                    return typeName + " (size = " + size + ")";
+                }
+            }
+
+            return typeName + "@" + obj.uniqueID();
         }
         return value.toString();
+    }
+
+    /**
+     * Vérifie si le type est une collection connue
+     */
+    private boolean isCollectionType(String typeName) {
+        return typeName.contains("ArrayList") ||
+               typeName.contains("LinkedList") ||
+               typeName.contains("HashSet") ||
+               typeName.contains("TreeSet") ||
+               typeName.contains("Vector") ||
+               typeName.contains("Stack") ||
+               typeName.endsWith("List") ||
+               typeName.endsWith("Set");
+    }
+
+    /**
+     * Tente d'obtenir la taille d'une collection en accédant au champ 'size'
+     */
+    private int getCollectionSize(ObjectReference obj) {
+        try {
+            ReferenceType refType = obj.referenceType();
+
+            // Pour ArrayList, LinkedList, HashSet, TreeSet, Vector : chercher le champ 'size'
+            Field sizeField = refType.fieldByName("size");
+            if (sizeField != null) {
+                Value sizeValue = obj.getValue(sizeField);
+                if (sizeValue instanceof IntegerValue) {
+                    return ((IntegerValue) sizeValue).value();
+                }
+            }
+
+            // Pour certaines collections, le champ peut s'appeler différemment
+            // Essayer 'elementCount' (Vector)
+            Field elementCountField = refType.fieldByName("elementCount");
+            if (elementCountField != null) {
+                Value countValue = obj.getValue(elementCountField);
+                if (countValue instanceof IntegerValue) {
+                    return ((IntegerValue) countValue).value();
+                }
+            }
+
+            // Pour TreeSet/TreeMap : chercher 'm' qui est le backing map
+            Field backingMapField = refType.fieldByName("m");
+            if (backingMapField != null) {
+                Value mapValue = obj.getValue(backingMapField);
+                if (mapValue instanceof ObjectReference) {
+                    return getCollectionSize((ObjectReference) mapValue);
+                }
+            }
+
+        } catch (Exception e) {
+            // En cas d'erreur, on retourne -1
+        }
+        return -1;
     }
     public int getStepNumber() { return stepNumber; }
     public String getSourceFile() { return sourceFile; }

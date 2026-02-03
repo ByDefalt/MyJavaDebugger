@@ -106,16 +106,39 @@ public class VariableHistoryPanel extends JPanel {
         tableModel.setRowCount(0);
         List<HistoryEntry> entries = extractVariableHistory(variableId, variableName, snapshots);
         String previousValue = null;
+        int previousSize = -1;
+        boolean isFirstEntry = true;
+
         for (HistoryEntry entry : entries) {
             boolean changed = previousValue != null && !previousValue.equals(entry.value);
+            boolean isCollection = isCollectionValue(entry.value);
+            boolean sizeIncreased = false;
+            boolean sizeDecreased = false;
+
+            // Si c'est une collection, vérifier le changement de taille
+            if (isCollection && previousValue != null && isCollectionValue(previousValue)) {
+                int currentSize = extractCollectionSize(entry.value);
+                if (currentSize != -1 && previousSize != -1) {
+                    if (currentSize > previousSize) {
+                        sizeIncreased = true;
+                    } else if (currentSize < previousSize) {
+                        sizeDecreased = true;
+                    }
+                }
+                previousSize = currentSize;
+            } else if (isCollection) {
+                previousSize = extractCollectionSize(entry.value);
+            }
+
             Object[] row = {
                 entry.stepNumber,
-                new ValueCell(entry.value, changed),
+                new ValueCell(entry.value, changed, isCollection, sizeIncreased, sizeDecreased, isFirstEntry),
                 entry.methodName,
                 entry.lineNumber
             };
             tableModel.addRow(row);
             previousValue = entry.value;
+            isFirstEntry = false;
         }
         if (entries.isEmpty()) {
             showEmptyState();
@@ -157,6 +180,56 @@ public class VariableHistoryPanel extends JPanel {
         }
         return entries;
     }
+
+    /**
+     * Extrait la taille d'une collection depuis sa représentation en string.
+     * Exemples supportés:
+     * - "ArrayList (size = 5)" -> 5
+     * - "Array[10]" -> 10
+     * - "[1, 2, 3]" -> 3
+     * - "size=5" -> 5
+     * @return La taille si détectée, sinon -1
+     */
+    private int extractCollectionSize(String value) {
+        if (value == null) return -1;
+
+        //Pattern: "size = X" ou "size=X"
+        java.util.regex.Pattern sizePattern = java.util.regex.Pattern.compile("size\\s*=\\s*(\\d+)");
+        java.util.regex.Matcher sizeMatcher = sizePattern.matcher(value);
+        if (sizeMatcher.find()) {
+            return Integer.parseInt(sizeMatcher.group(1));
+        }
+
+        // Pattern: "Array[X]"
+        java.util.regex.Pattern arrayPattern = java.util.regex.Pattern.compile("Array\\[(\\d+)\\]");
+        java.util.regex.Matcher arrayMatcher = arrayPattern.matcher(value);
+        if (arrayMatcher.find()) {
+            return Integer.parseInt(arrayMatcher.group(1));
+        }
+
+        // Pattern: "[a, b, c]" - compter les éléments séparés par des virgules
+        if (value.startsWith("[") && value.endsWith("]")) {
+            String content = value.substring(1, value.length() - 1).trim();
+            if (content.isEmpty()) return 0;
+            // Compter les virgules + 1
+            return content.split(",").length;
+        }
+
+        return -1;
+    }
+
+    /**
+     * Vérifie si une valeur représente une collection
+     */
+    private boolean isCollectionValue(String value) {
+        if (value == null) return false;
+        return value.contains("size =") || value.contains("size=") ||
+               value.contains("Array[") || value.contains("List") ||
+               value.contains("Collection") || value.contains("Set") ||
+               value.contains("ArrayList") || value.contains("LinkedList") ||
+               value.contains("HashSet") || value.contains("TreeSet") ||
+               value.contains("Vector");
+    }
     private void showEmptyState() {
         tableModel.setRowCount(0);
         titleLabel.setText("Variable History");
@@ -182,10 +255,28 @@ public class VariableHistoryPanel extends JPanel {
     private static class ValueCell {
         final String value;
         final boolean changed;
+        final boolean isCollection;
+        final boolean sizeIncreased;
+        final boolean sizeDecreased;
+        final boolean isInitialization;
+
         ValueCell(String value, boolean changed) {
+            this(value, changed, false, false, false, false);
+        }
+
+        ValueCell(String value, boolean changed, boolean isCollection, boolean sizeIncreased, boolean sizeDecreased) {
+            this(value, changed, isCollection, sizeIncreased, sizeDecreased, false);
+        }
+
+        ValueCell(String value, boolean changed, boolean isCollection, boolean sizeIncreased, boolean sizeDecreased, boolean isInitialization) {
             this.value = value;
             this.changed = changed;
+            this.isCollection = isCollection;
+            this.sizeIncreased = sizeIncreased;
+            this.sizeDecreased = sizeDecreased;
+            this.isInitialization = isInitialization;
         }
+
         @Override
         public String toString() {
             return value;
@@ -200,10 +291,23 @@ public class VariableHistoryPanel extends JPanel {
                 ValueCell cell = (ValueCell) value;
                 setText(cell.value);
                 if (!isSelected) {
-                    if (cell.changed) {
-                        setBackground(new Color(50, 100, 50));
+                    // Priorité 1: Initialisation (première occurrence)
+                    if (cell.isInitialization) {
+                        // Orange pour l'initialisation
+                        setBackground(new Color(100, 70, 30));
+                        setForeground(new Color(255, 200, 120));
+                    }
+                    // Priorité 2: Changements de taille de collection
+                    else if (cell.isCollection && cell.sizeDecreased) {
+                        // Rouge pour diminution de taille
+                        setBackground(new Color(100, 40, 40));
+                        setForeground(new Color(255, 150, 150));
+                    } else if (cell.isCollection && cell.sizeIncreased) {
+                        // Vert pour augmentation de taille
+                        setBackground(new Color(40, 100, 40));
                         setForeground(new Color(150, 255, 150));
                     } else {
+                        // Pas de coloration pour les changements de variables classiques
                         setBackground(theme.getBackgroundPrimary());
                         setForeground(theme.getTextPrimary());
                     }
