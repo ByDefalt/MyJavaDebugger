@@ -15,6 +15,8 @@ import models.DebuggerState;
 import models.ExecutionSnapshot;
 import javax.swing.*;
 import java.awt.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 public class DebuggerGUI extends JFrame {
@@ -29,13 +31,10 @@ public class DebuggerGUI extends JFrame {
     private DebuggerState state;
     private String currentSourceFile = "";
     private DebuggerController controller;
+    private List<ExecutionSnapshot> executionSnapshots = new ArrayList<>();
     private List<DebugFrame> currentFrames = new ArrayList<>();
     private ExecutionSnapshot currentSnapshot;
     private final Theme theme;
-
-    private final SourceFileLoader sourceFileLoader;
-    private final SnapshotNavigator snapshotNavigator;
-
     public interface DebuggerController {
         void onContinue() throws Exception;
         void onStepOver() throws Exception;
@@ -56,10 +55,6 @@ public class DebuggerGUI extends JFrame {
         this.debugLogPanel = new OutputPanel("Debugger Log");
         this.variableHistoryPanel = new VariableHistoryPanel();
         this.methodCallsPanel = new MethodCallsPanel();
-
-        this.sourceFileLoader = new SourceFileLoader(sourceCodePanel, this::appendDebugLog);
-        this.snapshotNavigator = new SnapshotNavigator();
-
         initFrame();
         initLayout();
         initListeners();
@@ -208,7 +203,8 @@ public class DebuggerGUI extends JFrame {
                     int lineNumber = selectedFrame.getLineNumber();
                     if (sourceFile != null) {
                         currentSourceFile = sourceFile;
-                        sourceFileLoader.loadFromFrame(selectedFrame);
+                        loadSourceFromFrame(selectedFrame);
+                        sourceCodePanel.setCurrentLine(lineNumber);
                     }
                 }
                 return;
@@ -221,14 +217,43 @@ public class DebuggerGUI extends JFrame {
                 Location loc = selectedFrame.getLocation();
                 if (loc != null) {
                     currentSourceFile = loc.sourceName();
-                    sourceFileLoader.loadFromLocation(loc);
+                    loadSource(loc);
+                    sourceCodePanel.setCurrentLine(loc.lineNumber());
                 }
             }
         } catch (Exception e) {
             appendDebugLog("Error navigating stack: " + e.getMessage() + "\n");
         }
     }
-
+    private void loadSourceFromFrame(DebugFrame frame) {
+        String sourceName = frame.getSourceFile();
+        String displayName = frame.getDisplayName();
+        String packagePath = "";
+        if (displayName != null && displayName.contains(".")) {
+            String className = displayName.substring(0, displayName.lastIndexOf('.'));
+            if (className.contains(".")) {
+                packagePath = className.substring(0, className.lastIndexOf('.')).replace('.', '/') + "/";
+            }
+        }
+        String[] possiblePaths = {
+                "src/main/java/" + packagePath + sourceName,
+                "src/main/java/dbg/" + sourceName,
+                "src/main/java/" + sourceName,
+                "src/" + packagePath + sourceName,
+                sourceName
+        };
+        for (String path : possiblePaths) {
+            if (Files.exists(Paths.get(path))) {
+                try {
+                    List<String> lines = Files.readAllLines(Paths.get(path));
+                    sourceCodePanel.setSourceLines(lines);
+                    return;
+                } catch (Exception e) {
+                    appendDebugLog("[WARN] Error loading source: " + e.getMessage() + "\n");
+                }
+            }
+        }
+    }
     public void setController(DebuggerController controller) {
         this.controller = controller;
     }
@@ -239,7 +264,7 @@ public class DebuggerGUI extends JFrame {
         if (loc != null) {
             try {
                 currentSourceFile = loc.sourceName();
-                sourceFileLoader.loadFromLocation(loc);
+                loadSource(loc);
                 if (state.getContext() != null) {
                     callStackPanel.updateStack(state.getContext().getCallStack().getFrames());
                     callStackPanel.selectFrame(0);
@@ -252,6 +277,30 @@ public class DebuggerGUI extends JFrame {
                 appendDebugLog("Error: " + e.getMessage() + "\n");
             }
         }
+    }
+    private void loadSource(Location loc) throws Exception {
+        String sourceName = loc.sourceName();
+        String className = loc.declaringType().name();
+        String packagePath = className.contains(".")
+                ? className.substring(0, className.lastIndexOf('.')).replace('.', '/') + "/"
+                : "";
+        String[] possiblePaths = {
+                "src/main/java/" + packagePath + sourceName,
+                "src/main/java/dbg/" + sourceName,
+                "src/main/java/" + sourceName,
+                "src/" + packagePath + sourceName,
+                sourceName
+        };
+        for (String path : possiblePaths) {
+            if (Files.exists(Paths.get(path))) {
+                List<String> lines = Files.readAllLines(Paths.get(path));
+                sourceCodePanel.setSourceLines(lines);
+                sourceCodePanel.setCurrentLine(loc.lineNumber());
+                appendDebugLog("[LOADED] Source: " + path + "\n");
+                return;
+            }
+        }
+        appendDebugLog("[WARN] Source file not found: " + sourceName + " (tried " + possiblePaths.length + " paths)\n");
     }
     public void appendOutput(String text) {
         outputPanel.appendOutput(text);
@@ -281,8 +330,8 @@ public class DebuggerGUI extends JFrame {
             try {
                 this.currentSnapshot = snapshot;
                 currentSourceFile = snapshot.getSourceFile();
-                sourceFileLoader.loadFromSnapshot(snapshot, snapshot.getLineNumber());
-                this.currentFrames = snapshotNavigator.convertStackFrames(snapshot.getStackFrames());
+                loadSourceFromSnapshot(snapshot);
+                this.currentFrames = convertStackFrames(snapshot.getStackFrames());
                 callStackPanel.updateStack(currentFrames);
                 if (!currentFrames.isEmpty()) {
                     callStackPanel.selectFrame(0);
@@ -300,34 +349,74 @@ public class DebuggerGUI extends JFrame {
             }
         });
     }
-
-    public void setExecutionSnapshots(List<ExecutionSnapshot> snapshots) {
-        snapshotNavigator.setSnapshots(snapshots);
+    private void loadSourceFromSnapshot(ExecutionSnapshot snapshot) {
+        loadSourceFromSnapshot(snapshot, snapshot.getLineNumber());
     }
-
+    private void loadSourceFromSnapshot(ExecutionSnapshot snapshot, int lineNumber) {
+        String sourceName = snapshot.getSourceFile();
+        String className = snapshot.getClassName();
+        String packagePath = className.contains(".")
+                ? className.substring(0, className.lastIndexOf('.')).replace('.', '/') + "/"
+                : "";
+        String[] possiblePaths = {
+                "src/main/java/" + packagePath + sourceName,
+                "src/main/java/dbg/" + sourceName,
+                "src/main/java/" + sourceName,
+                "src/" + packagePath + sourceName,
+                sourceName
+        };
+        for (String path : possiblePaths) {
+            if (Files.exists(Paths.get(path))) {
+                try {
+                    List<String> lines = Files.readAllLines(Paths.get(path));
+                    sourceCodePanel.setSourceLines(lines);
+                    SwingUtilities.invokeLater(() -> sourceCodePanel.setCurrentLine(lineNumber));
+                    return;
+                } catch (Exception e) {
+                    appendDebugLog("[WARN] Error loading source: " + e.getMessage() + "\n");
+                }
+            }
+        }
+    }
+    private List<DebugFrame> convertStackFrames(List<ExecutionSnapshot.StackFrameSnapshot> stackFrames) {
+        List<DebugFrame> frames = new ArrayList<>();
+        for (ExecutionSnapshot.StackFrameSnapshot sf : stackFrames) {
+            DebugFrame frame = new DebugFrame(
+                    sf.getClassName() + "." + sf.getMethodName() + "()",
+                    sf.getSourceFile(),
+                    sf.getLineNumber()
+            );
+            frames.add(frame);
+        }
+        return frames;
+    }
+    public void setExecutionSnapshots(List<ExecutionSnapshot> snapshots) {
+        this.executionSnapshots = snapshots != null ? snapshots : new ArrayList<>();
+    }
     private void showVariableHistory(String variableId, String variableName) {
-        if (!snapshotNavigator.hasSnapshots()) {
+        if (executionSnapshots.isEmpty()) {
             appendDebugLog("[INFO] No execution history available. Run with recording enabled.\n");
             return;
         }
-        variableHistoryPanel.showVariableHistory(variableId, variableName, snapshotNavigator.getSnapshots());
+        variableHistoryPanel.showVariableHistory(variableId, variableName, executionSnapshots);
         variableHistoryPanel.setVisible(true);
         revalidate();
         repaint();
         appendDebugLog("[HISTORY] Showing history for variable: " + variableName + "\n");
     }
     private void navigateToStep(int stepNumber) {
-        ExecutionSnapshot snapshot = snapshotNavigator.findSnapshotByStepNumber(stepNumber);
-        if (snapshot != null) {
-            int index = snapshotNavigator.findSnapshotIndexByStepNumber(stepNumber);
-            updateFromSnapshot(snapshot);
-            if (controller != null) {
-                controller.onNavigateToStep(index);
+        for (int i = 0; i < executionSnapshots.size(); i++) {
+            ExecutionSnapshot snapshot = executionSnapshots.get(i);
+            if (snapshot.getStepNumber() == stepNumber) {
+                updateFromSnapshot(snapshot);
+                if (controller != null) {
+                    controller.onNavigateToStep(i);
+                }
+                appendDebugLog("[TIME TRAVEL] Navigated to step #" + stepNumber + "\n");
+                return;
             }
-            appendDebugLog("[TIME TRAVEL] Navigated to step #" + stepNumber + "\n");
-        } else {
-            appendDebugLog("[ERROR] Step #" + stepNumber + " not found\n");
         }
+        appendDebugLog("[ERROR] Step #" + stepNumber + " not found\n");
     }
     public VariableHistoryPanel getVariableHistoryPanel() {
         return variableHistoryPanel;
@@ -336,25 +425,26 @@ public class DebuggerGUI extends JFrame {
         return variablesPanel;
     }
     private void showMethodCallsPanel() {
-        if (!snapshotNavigator.hasSnapshots()) {
+        if (executionSnapshots.isEmpty()) {
             appendDebugLog("[INFO] No execution history available. Run with recording enabled.\n");
             return;
         }
-        methodCallsPanel.updateMethodCalls(snapshotNavigator.getSnapshots());
+        methodCallsPanel.updateMethodCalls(executionSnapshots);
         methodCallsPanel.setTitle("METHOD CALLS");
         methodCallsPanel.setVisible(true);
         revalidate();
         repaint();
-        appendDebugLog("[METHOD CALLS] Showing " + snapshotNavigator.getSnapshots().size() + " recorded method calls\n");
+        appendDebugLog("[METHOD CALLS] Showing " + executionSnapshots.size() + " recorded method calls\n");
     }
     private void showMethodCallsForMethod(String className, String methodName) {
-        if (!snapshotNavigator.hasSnapshots()) {
+        if (executionSnapshots.isEmpty()) {
             appendDebugLog("[INFO] No execution history available. Run with recording enabled.\n");
             return;
         }
-        methodCallsPanel.updateMethodCalls(snapshotNavigator.getSnapshots());
+        methodCallsPanel.updateMethodCalls(executionSnapshots);
         methodCallsPanel.filterByClassAndMethod(className, methodName);
-        String shortClassName = snapshotNavigator.buildShortClassName(className);
+        String shortClassName = className.contains(".") ?
+                className.substring(className.lastIndexOf('.') + 1) : className;
         methodCallsPanel.setTitle("CALLS TO " + shortClassName + "." + methodName + "()");
         methodCallsPanel.setVisible(true);
         revalidate();
