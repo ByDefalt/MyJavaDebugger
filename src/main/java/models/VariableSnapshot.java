@@ -1,5 +1,8 @@
 package models;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
 public class VariableSnapshot {
@@ -10,6 +13,7 @@ public class VariableSnapshot {
     private final String className;
     private final int frameIndex;
     private final int slot;
+    private final List<VariableSnapshot> children;
 
     public VariableSnapshot(String name, String type, String value,
                            String methodName, String className, int frameIndex, int slot) {
@@ -20,6 +24,19 @@ public class VariableSnapshot {
         this.className = className;
         this.frameIndex = frameIndex;
         this.slot = slot;
+        this.children = new ArrayList<>();
+    }
+
+    public void addChild(VariableSnapshot child) {
+        children.add(child);
+    }
+
+    public List<VariableSnapshot> getChildren() {
+        return Collections.unmodifiableList(children);
+    }
+
+    public boolean hasChildren() {
+        return !children.isEmpty();
     }
 
     public String getUniqueId() {

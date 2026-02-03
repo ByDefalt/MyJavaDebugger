@@ -130,15 +130,33 @@ public class VariablesPanel extends JPanel {
             nodeToVariableMap.clear();
             if (snapshots != null) {
                 for (models.VariableSnapshot vs : snapshots) {
-                    String display = vs.getName() + " (" + vs.getType() + ") = " + vs.getValue();
-                    DefaultMutableTreeNode varNode = new DefaultMutableTreeNode(display);
-                    nodeToVariableMap.put(varNode, new VariableInfo(vs.getName(), vs.getUniqueId()));
+                    DefaultMutableTreeNode varNode = createSnapshotNode(vs);
                     rootNode.add(varNode);
                 }
             }
             treeModel.reload();
-            expandAllNodes();
+            expandFirstLevel();
         });
+    }
+
+    private DefaultMutableTreeNode createSnapshotNode(models.VariableSnapshot vs) {
+        String display = vs.getName() + " (" + vs.getType() + ") = " + vs.getValue();
+        DefaultMutableTreeNode node = new DefaultMutableTreeNode(display);
+        nodeToVariableMap.put(node, new VariableInfo(vs.getName(), vs.getUniqueId()));
+
+        if (vs.hasChildren()) {
+            for (models.VariableSnapshot child : vs.getChildren()) {
+                node.add(createSnapshotNode(child));
+            }
+        }
+
+        return node;
+    }
+
+    private void expandFirstLevel() {
+        for (int i = 0; i < rootNode.getChildCount(); i++) {
+            variablesTree.expandRow(i + 1);
+        }
     }
 
     private DefaultMutableTreeNode createVariableNode(String name, Value value) {

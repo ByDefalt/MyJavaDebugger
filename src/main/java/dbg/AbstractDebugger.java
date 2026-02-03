@@ -59,7 +59,7 @@ public abstract class AbstractDebugger {
     protected abstract boolean onStep(Location loc, ThreadReference thread) throws Exception;
 
     protected boolean onMethodEntry(Location loc, ThreadReference thread) throws Exception {
-        
+        // no default action
         return false;
     }
 

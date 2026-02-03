@@ -77,8 +77,8 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
     protected void onVMDisconnect() {
         if (log != null) {
             int count = state.getExecutionHistory().size();
-            log.info("✅ Recording complete! %d steps recorded.", count);
-            log.info("🎮 Entering replay mode - use controls to navigate through execution.");
+            log.info("Recording complete! %d steps recorded.", count);
+            log.info("Entering replay mode - use controls to navigate through execution.");
         }
 
         recordingPhase = false;

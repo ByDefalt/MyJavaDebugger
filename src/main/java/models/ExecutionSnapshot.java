@@ -12,12 +12,9 @@ public class ExecutionSnapshot {
     private final List<StackFrameSnapshot> stackFrames;
     private final Map<String, String> localVariables;
     private final List<VariableSnapshot> variableSnapshots;
-    private final String receiverInfo;
-    private final long timestamp;
 
     public ExecutionSnapshot(int stepNumber, ThreadReference thread) throws IncompatibleThreadStateException, AbsentInformationException {
         this.stepNumber = stepNumber;
-        this.timestamp = System.currentTimeMillis();
 
         StackFrame frame = thread.frame(0);
         Location location = frame.location();
@@ -47,13 +44,6 @@ public class ExecutionSnapshot {
         } catch (AbsentInformationException e) {
             
         }
-
-        ObjectReference thisObj = frame.thisObject();
-        if (thisObj != null) {
-            this.receiverInfo = thisObj.referenceType().name() + "@" + thisObj.uniqueID();
-        } else {
-            this.receiverInfo = "static context";
-        }
     }
 
     private void captureVariables(StackFrame frame, int frameIndex) {
@@ -66,19 +56,90 @@ public class ExecutionSnapshot {
             for (int i = 0; i < vars.size(); i++) {
                 LocalVariable lv = vars.get(i);
                 Value val = frame.getValue(lv);
-                VariableSnapshot vs = new VariableSnapshot(
+                VariableSnapshot vs = createVariableSnapshot(
                     lv.name(),
                     lv.typeName(),
-                    valueToString(val),
+                    val,
                     framMethodName,
                     framClassName,
                     frameIndex,
-                    i
+                    i,
+                    0
                 );
                 variableSnapshots.add(vs);
             }
         } catch (AbsentInformationException e) {
         }
+    }
+
+    private static final int MAX_DEPTH = 3;
+    private static final int MAX_CHILDREN = 50;
+
+    private VariableSnapshot createVariableSnapshot(String name, String type, Value value,
+            String methodName, String className, int frameIndex, int slot, int depth) {
+
+        VariableSnapshot vs = new VariableSnapshot(
+            name, type, valueToString(value), methodName, className, frameIndex, slot
+        );
+
+        if (depth >= MAX_DEPTH || value == null) {
+            return vs;
+        }
+
+        if (value instanceof ArrayReference) {
+            ArrayReference array = (ArrayReference) value;
+            int count = Math.min(array.length(), MAX_CHILDREN);
+            for (int i = 0; i < count; i++) {
+                Value elementValue = array.getValue(i);
+                String elementType = elementValue != null ? elementValue.type().name() : "null";
+                VariableSnapshot child = createVariableSnapshot(
+                    "[" + i + "]", elementType, elementValue,
+                    methodName, className, frameIndex, slot, depth + 1
+                );
+                vs.addChild(child);
+            }
+            if (array.length() > MAX_CHILDREN) {
+                vs.addChild(new VariableSnapshot(
+                    "...", "more", "(" + (array.length() - MAX_CHILDREN) + " more elements)",
+                    methodName, className, frameIndex, slot
+                ));
+            }
+        } else if (value instanceof ObjectReference && !(value instanceof StringReference)) {
+            ObjectReference obj = (ObjectReference) value;
+            try {
+                ReferenceType refType = obj.referenceType();
+                List<Field> fields = refType.allFields();
+                int count = 0;
+                for (Field field : fields) {
+                    if (count >= MAX_CHILDREN) {
+                        vs.addChild(new VariableSnapshot(
+                            "...", "more", "(" + (fields.size() - MAX_CHILDREN) + " more fields)",
+                            methodName, className, frameIndex, slot
+                        ));
+                        break;
+                    }
+                    try {
+                        Value fieldValue = obj.getValue(field);
+                        String fieldType = field.typeName();
+                        VariableSnapshot child = createVariableSnapshot(
+                            field.name(), fieldType, fieldValue,
+                            methodName, className, frameIndex, slot, depth + 1
+                        );
+                        vs.addChild(child);
+                        count++;
+                    } catch (Exception e) {
+                        vs.addChild(new VariableSnapshot(
+                            field.name(), field.typeName(), "<inaccessible>",
+                            methodName, className, frameIndex, slot
+                        ));
+                        count++;
+                    }
+                }
+            } catch (Exception e) {
+            }
+        }
+
+        return vs;
     }
 
     private String valueToString(Value value) {
@@ -103,8 +164,6 @@ public class ExecutionSnapshot {
     public List<StackFrameSnapshot> getStackFrames() { return stackFrames; }
     public Map<String, String> getLocalVariables() { return localVariables; }
     public List<VariableSnapshot> getVariableSnapshots() { return variableSnapshots; }
-    public String getReceiverInfo() { return receiverInfo; }
-    public long getTimestamp() { return timestamp; }
 
     public List<VariableSnapshot> getVariablesForFrame(int frameIndex) {
         List<VariableSnapshot> result = new ArrayList<>();
@@ -136,7 +195,6 @@ public class ExecutionSnapshot {
         sb.append("=== Step #").append(stepNumber).append(" ===\n");
         sb.append("Location: ").append(sourceFile).append(":").append(lineNumber).append("\n");
         sb.append("Method: ").append(className).append(".").append(methodName).append("()\n");
-        sb.append("Receiver: ").append(receiverInfo).append("\n");
         sb.append("\nLocal Variables:\n");
         if (localVariables.isEmpty()) {
             sb.append("  (none)\n");
