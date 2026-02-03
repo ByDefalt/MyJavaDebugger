@@ -96,8 +96,18 @@ public abstract class AbstractDebugger {
 
     /**
      * Appelée quand un step est terminé
+     * @return true si on doit attendre une commande utilisateur
      */
-    protected abstract void onStep(Location loc, ThreadReference thread) throws Exception;
+    protected abstract boolean onStep(Location loc, ThreadReference thread) throws Exception;
+
+    /**
+     * Appelée quand on entre dans une méthode (pour le recording)
+     * @return true si on doit attendre une commande utilisateur
+     */
+    protected boolean onMethodEntry(Location loc, ThreadReference thread) throws Exception {
+        // Par défaut, ne fait rien - les sous-classes peuvent override
+        return false;
+    }
 
     /**
      * Appelée quand une classe est chargée
@@ -192,8 +202,10 @@ public abstract class AbstractDebugger {
         } else if (event instanceof StepEvent) {
             StepEvent se = (StepEvent) event;
             vm.eventRequestManager().deleteEventRequest(se.request());
-            onStep(se.location(), se.thread());
-            return true;
+            return onStep(se.location(), se.thread());
+        } else if (event instanceof MethodEntryEvent) {
+            MethodEntryEvent me = (MethodEntryEvent) event;
+            return onMethodEntry(me.location(), me.thread());
         }
         return false;
     }

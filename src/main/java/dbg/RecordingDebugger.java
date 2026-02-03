@@ -3,10 +3,6 @@ package dbg;
 import io.ConsoleLogger;
 import io.Logger;
 
-/**
- * Debugger avec enregistrement automatique de tout le code en mode step-in
- * L'utilisateur peut ensuite naviguer dans l'historique d'exécution enregistré
- */
 public class RecordingDebugger {
     public static void main(String[] args) throws Exception {
         Logger log = new ConsoleLogger(Logger.Level.INFO);

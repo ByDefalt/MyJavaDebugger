@@ -3,7 +3,6 @@ package dbg;
 import com.sun.jdi.*;
 import com.sun.jdi.request.*;
 import commands.*;
-import handlers.*;
 import io.*;
 import models.*;
 
@@ -23,7 +22,6 @@ public class ScriptableDebugger extends AbstractDebugger {
     // Injection de dépendances (DIP)
     private final InputReader inputReader;
     private final ResultPresenter presenter;
-    private final EventHandlerRegistry eventHandlerRegistry;
 
     public ScriptableDebugger() {
         this(false, new ConsoleInputReader(), new ConsoleResultPresenter());
@@ -41,7 +39,6 @@ public class ScriptableDebugger extends AbstractDebugger {
         this.autoRecord = autoRecord;
         this.inputReader = inputReader;
         this.presenter = presenter;
-        this.eventHandlerRegistry = new EventHandlerRegistry();
     }
 
     // ========== Implémentation des callbacks abstraits ==========
@@ -53,12 +50,6 @@ public class ScriptableDebugger extends AbstractDebugger {
 
     @Override
     protected void onBeforeStart() {
-        // Enregistrer les handlers d'événements (OCP)
-        eventHandlerRegistry.register(new VMDisconnectEventHandler());
-        eventHandlerRegistry.register(new ClassPrepareEventHandler(debugClass));
-        eventHandlerRegistry.register(new BreakpointEventHandler());
-        eventHandlerRegistry.register(new StepEventHandler());
-        eventHandlerRegistry.register(new MethodEntryEventHandler(debugClass));
 
         if (autoRecord) {
             state.setRecordingMode(true);
@@ -123,21 +114,59 @@ public class ScriptableDebugger extends AbstractDebugger {
     }
 
     @Override
-    protected void onStep(Location loc, ThreadReference thread) throws Exception {
+    protected boolean onStep(Location loc, ThreadReference thread) throws Exception {
         if (state.isRecordingMode()) {
-            // Mode recording : enregistrer et continuer
+            // Mode recording : enregistrer et continuer automatiquement
             managers.SnapshotRecorder recorder = new managers.SnapshotRecorder(state);
             recorder.recordSnapshot(thread);
             if (recorder.shouldLogProgress()) {
                 presenter.info("... Recorded " + recorder.getStepCount() + " steps ...");
             }
-            resumeVM();
+
+            // Créer un nouveau StepRequest pour continuer l'enregistrement
+            createNextStepRequest(thread);
+            return false; // Pas d'attente de commande, continuer automatiquement
         } else {
-            // Mode normal : afficher et attendre
+            // Mode normal : afficher et attendre une commande
             presenter.info("\nStepped to: " + loc.sourceName() + ":" + loc.lineNumber());
             state.updateContext(thread);
             handleUserCommandLoop();
-            resumeVM();
+            return false; // handleUserCommandLoop gère l'attente, puis on resume
+        }
+    }
+
+    @Override
+    protected boolean onMethodEntry(Location loc, ThreadReference thread) throws Exception {
+        if (state.isRecordingMode()) {
+            // Mode recording : enregistrer le snapshot pour chaque entrée de méthode
+            managers.SnapshotRecorder recorder = new managers.SnapshotRecorder(state);
+            recorder.recordSnapshot(thread);
+            if (recorder.shouldLogProgress()) {
+                presenter.info("... Recorded " + recorder.getStepCount() + " method entries ...");
+            }
+            // Créer un StepRequest pour capturer les lignes de cette méthode
+            createNextStepRequest(thread);
+            return false; // Continuer automatiquement
+        }
+        return false;
+    }
+
+    /**
+     * Crée un StepRequest pour le prochain step en mode recording
+     */
+    private void createNextStepRequest(ThreadReference thread) {
+        try {
+            EventRequestManager erm = vm.eventRequestManager();
+            StepRequest stepRequest = erm.createStepRequest(
+                thread,
+                StepRequest.STEP_LINE,
+                StepRequest.STEP_INTO
+            );
+            stepRequest.addClassFilter(debugClass.getName());
+            stepRequest.setSuspendPolicy(EventRequest.SUSPEND_EVENT_THREAD);
+            stepRequest.enable();
+        } catch (Exception e) {
+            // Ignorer - le programme est peut-être terminé
         }
     }
 
@@ -155,11 +184,14 @@ public class ScriptableDebugger extends AbstractDebugger {
 
     private void setupAutoRecording() {
         EventRequestManager erm = vm.eventRequestManager();
+
+        // Utiliser MethodEntryRequest pour détecter l'entrée dans les méthodes
+        // Le StepRequest sera créé une fois qu'on aura un thread suspendu
         MethodEntryRequest methodEntryRequest = erm.createMethodEntryRequest();
         methodEntryRequest.addClassFilter(debugClass.getName());
         methodEntryRequest.setSuspendPolicy(EventRequest.SUSPEND_EVENT_THREAD);
         methodEntryRequest.enable();
-        presenter.info("MethodEntryRequest configured for " + debugClass.getName());
+        presenter.info("MethodEntryRequest configured for auto-recording in " + debugClass.getName());
     }
 
     /**

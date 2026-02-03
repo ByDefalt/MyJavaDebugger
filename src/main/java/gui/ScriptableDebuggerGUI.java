@@ -92,11 +92,12 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
     }
 
     @Override
-    protected void onStep(Location loc, ThreadReference thread) throws Exception {
+    protected boolean onStep(Location loc, ThreadReference thread) throws Exception {
         if (log != null) {
             log.debug("Step at %s:%d", loc.sourceName(), loc.lineNumber());
         }
         updateUIAndWait(loc, thread);
+        return true; // Attendre une commande utilisateur
     }
 
     @Override
