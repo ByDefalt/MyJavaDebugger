@@ -1,5 +1,4 @@
 package commands;
-
 import com.sun.jdi.Field;
 import com.sun.jdi.ObjectReference;
 import com.sun.jdi.ReferenceType;
@@ -7,10 +6,8 @@ import com.sun.jdi.Value;
 import models.DebugFrame;
 import models.DebuggerState;
 import models.Variable;
-
 import java.util.ArrayList;
 import java.util.List;
-
 class ReceiverVariablesCommand implements Command {
     @Override
     public CommandResult execute(DebuggerState state) throws Exception {
@@ -22,7 +19,6 @@ class ReceiverVariablesCommand implements Command {
         if (receiver == null) {
             return CommandResult.error("No receiver");
         }
-
         List<Variable> variables = new ArrayList<>();
         ReferenceType type = receiver.referenceType();
         for (Field field : type.allFields()) {

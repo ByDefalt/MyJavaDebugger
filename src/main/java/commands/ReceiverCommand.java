@@ -1,9 +1,7 @@
 package commands;
-
 import com.sun.jdi.ObjectReference;
 import models.DebugFrame;
 import models.DebuggerState;
-
 class ReceiverCommand implements Command {
     @Override
     public CommandResult execute(DebuggerState state) throws Exception {

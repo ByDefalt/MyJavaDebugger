@@ -1,8 +1,6 @@
 package commands;
-
 import models.DebuggerState;
 import models.MethodInfo;
-
 class MethodCommand implements Command {
     @Override
     public CommandResult execute(DebuggerState state) throws Exception {

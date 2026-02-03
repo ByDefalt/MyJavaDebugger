@@ -1,12 +1,9 @@
 package commands;
-
 import models.Breakpoint;
 import models.DebuggerState;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
-
 class BreakpointsCommand implements Command {
     @Override
     public CommandResult execute(DebuggerState state) throws Exception {

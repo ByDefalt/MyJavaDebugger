@@ -1,34 +1,26 @@
 package gui.components;
-
 import gui.theme.Theme;
 import gui.theme.ThemeManager;
-
 import javax.swing.*;
 import java.awt.*;
-
 public class StyledButton extends JButton {
-
     public enum ButtonType {
         PRIMARY,
         SUCCESS,
         DANGER,
         DEFAULT
     }
-
     private final ButtonType type;
     private final Theme theme;
-
     public StyledButton(String text) {
         this(text, ButtonType.PRIMARY);
     }
-
     public StyledButton(String text, ButtonType type) {
         super(text);
         this.type = type;
         this.theme = ThemeManager.getInstance().getTheme();
         applyStyle();
     }
-
     private void applyStyle() {
         setFont(theme.getUIFontBold());
         setForeground(Color.WHITE);
@@ -39,7 +31,6 @@ public class StyledButton extends JButton {
         setOpaque(true);
         setContentAreaFilled(true);
     }
-
     private Color getColorForType() {
         switch (type) {
             case SUCCESS: return theme.getAccentSuccess();

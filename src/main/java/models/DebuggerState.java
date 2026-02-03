@@ -1,13 +1,10 @@
 package models;
-
 import com.sun.jdi.IncompatibleThreadStateException;
 import com.sun.jdi.ThreadReference;
 import com.sun.jdi.VirtualMachine;
 import com.sun.jdi.request.MethodEntryRequest;
-
 import java.util.HashMap;
 import java.util.Map;
-
 public class DebuggerState {
     private VirtualMachine vm;
     private ExecutionContext context;
@@ -17,7 +14,6 @@ public class DebuggerState {
     private ExecutionHistory executionHistory;
     private boolean replayMode;
     private boolean recordingMode;
-
     public DebuggerState(VirtualMachine vm) {
         this.vm = vm;
         this.breakpoints = new HashMap<>();
@@ -27,11 +23,9 @@ public class DebuggerState {
         this.replayMode = false;
         this.recordingMode = false;
     }
-
     public void updateContext(ThreadReference thread) throws IncompatibleThreadStateException {
         this.context = new ExecutionContext(thread);
     }
-
     public VirtualMachine getVm() { return vm; }
     public ExecutionContext getContext() { return context; }
     public Map<String, Breakpoint> getBreakpoints() { return breakpoints; }

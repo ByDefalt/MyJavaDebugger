@@ -1,7 +1,5 @@
 package models;
-
 import com.sun.jdi.request.BreakpointRequest;
-
 public class Breakpoint {
     private String fileName;
     private int lineNumber;
@@ -9,17 +7,14 @@ public class Breakpoint {
     private BreakpointType type;
     private int hitCount;
     private int targetCount;
-
     public enum BreakpointType {
         NORMAL,
         ONCE,
         ON_COUNT
     }
-
     public Breakpoint(String fileName, int lineNumber, BreakpointRequest request, BreakpointType type) {
         this(fileName, lineNumber, request, type, 0);
     }
-
     public Breakpoint(String fileName, int lineNumber, BreakpointRequest request,
                       BreakpointType type, int targetCount) {
         this.fileName = fileName;
@@ -29,7 +24,6 @@ public class Breakpoint {
         this.hitCount = 0;
         this.targetCount = targetCount;
     }
-
     public void incrementHitCount() { hitCount++; }
     public int getHitCount() { return hitCount; }
     public int getTargetCount() { return targetCount; }
@@ -37,7 +31,6 @@ public class Breakpoint {
     public BreakpointRequest getRequest() { return request; }
     public String getFileName() { return fileName; }
     public int getLineNumber() { return lineNumber; }
-
     public boolean shouldStop() {
         switch (type) {
             case NORMAL:
@@ -50,7 +43,6 @@ public class Breakpoint {
                 return false;
         }
     }
-
     @Override
     public String toString() {
         String info = fileName + ":" + lineNumber;

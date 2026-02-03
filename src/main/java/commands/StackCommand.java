@@ -1,19 +1,15 @@
 package commands;
-
 import models.CallStack;
 import models.DebuggerState;
 import models.ExecutionSnapshot;
-
 class StackCommand implements Command {
     @Override
     public CommandResult execute(DebuggerState state) throws Exception {
-        
         if (state.isReplayMode() && state.getExecutionHistory() != null) {
             ExecutionSnapshot snapshot = state.getExecutionHistory().getCurrentSnapshot();
             if (snapshot == null) {
                 return CommandResult.error("No current execution state");
             }
-
             StringBuilder sb = new StringBuilder();
             sb.append("Call Stack (from recorded state):\n");
             for (ExecutionSnapshot.StackFrameSnapshot frame : snapshot.getStackFrames()) {
@@ -21,7 +17,6 @@ class StackCommand implements Command {
             }
             return CommandResult.success(sb.toString(), snapshot.getStackFrames());
         }
-
         CallStack stack = state.getContext().getCallStack();
         if (stack == null) {
             return CommandResult.error("No call stack available");

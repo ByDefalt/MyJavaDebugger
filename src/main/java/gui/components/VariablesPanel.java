@@ -1,9 +1,7 @@
 package gui.components;
-
 import com.sun.jdi.*;
 import gui.theme.Theme;
 import gui.theme.ThemeManager;
-
 import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import javax.swing.tree.DefaultMutableTreeNode;
@@ -15,58 +13,44 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.HashMap;
 import java.util.Map;
-
 public class VariablesPanel extends JPanel {
-
     private final JTree variablesTree;
     private final DefaultTreeModel treeModel;
     private final DefaultMutableTreeNode rootNode;
     private final Theme theme;
-
     private final Map<DefaultMutableTreeNode, VariableInfo> nodeToVariableMap = new HashMap<>();
-
     public interface VariableSelectionListener {
         void onVariableDoubleClicked(String variableId, String variableName);
     }
-
     private VariableSelectionListener selectionListener;
-
     public static class VariableInfo {
         public final String name;
         public final String uniqueId;
-
         public VariableInfo(String name, String uniqueId) {
             this.name = name;
             this.uniqueId = uniqueId;
         }
     }
-
     public VariablesPanel() {
         this.theme = ThemeManager.getInstance().getTheme();
         this.rootNode = new DefaultMutableTreeNode("Variables");
         this.treeModel = new DefaultTreeModel(rootNode);
-
         setLayout(new BorderLayout());
         setBackground(theme.getBackgroundSecondary());
-
         variablesTree = createTree();
         JScrollPane scrollPane = new JScrollPane(variablesTree);
         scrollPane.setBorder(null);
-
         add(scrollPane, BorderLayout.CENTER);
         applyTitledBorder("VARIABLES");
     }
-
     public void setSelectionListener(VariableSelectionListener listener) {
         this.selectionListener = listener;
     }
-
     private JTree createTree() {
         JTree tree = new JTree(treeModel);
         tree.setBackground(theme.getBackgroundPrimary());
         tree.setForeground(theme.getTextSecondary());
         tree.setFont(theme.getUIFont());
-
         tree.setCellRenderer(new DefaultTreeCellRenderer() {
             @Override
             public Component getTreeCellRendererComponent(JTree tree, Object value,
@@ -79,7 +63,6 @@ public class VariablesPanel extends JPanel {
                 return this;
             }
         });
-
         tree.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -95,10 +78,8 @@ public class VariablesPanel extends JPanel {
                 }
             }
         });
-
         return tree;
     }
-
     private void applyTitledBorder(String title) {
         TitledBorder border = BorderFactory.createTitledBorder(
                 BorderFactory.createMatteBorder(1, 0, 0, 0, theme.getBorderColor()),
@@ -107,7 +88,6 @@ public class VariablesPanel extends JPanel {
         border.setTitleFont(theme.getSmallFont());
         setBorder(border);
     }
-
     public void updateVariables(java.util.List<models.Variable> variables) {
         SwingUtilities.invokeLater(() -> {
             rootNode.removeAllChildren();
@@ -123,7 +103,6 @@ public class VariablesPanel extends JPanel {
             expandAllNodes();
         });
     }
-
     public void updateFromSnapshots(java.util.List<models.VariableSnapshot> snapshots) {
         SwingUtilities.invokeLater(() -> {
             rootNode.removeAllChildren();
@@ -138,34 +117,27 @@ public class VariablesPanel extends JPanel {
             expandFirstLevel();
         });
     }
-
     private DefaultMutableTreeNode createSnapshotNode(models.VariableSnapshot vs) {
         String display = vs.getName() + " (" + vs.getType() + ") = " + vs.getValue();
         DefaultMutableTreeNode node = new DefaultMutableTreeNode(display);
         nodeToVariableMap.put(node, new VariableInfo(vs.getName(), vs.getUniqueId()));
-
         if (vs.hasChildren()) {
             for (models.VariableSnapshot child : vs.getChildren()) {
                 node.add(createSnapshotNode(child));
             }
         }
-
         return node;
     }
-
     private void expandFirstLevel() {
         for (int i = 0; i < rootNode.getChildCount(); i++) {
             variablesTree.expandRow(i + 1);
         }
     }
-
     private DefaultMutableTreeNode createVariableNode(String name, Value value) {
         String display = name + " = " + formatValue(value);
         DefaultMutableTreeNode node = new DefaultMutableTreeNode(display);
-
         if (value instanceof ObjectReference) {
             ObjectReference obj = (ObjectReference) value;
-
             if (value instanceof ArrayReference) {
                 ArrayReference array = (ArrayReference) value;
                 int maxItems = Math.min(array.length(), 100); 
@@ -189,7 +161,6 @@ public class VariablesPanel extends JPanel {
         }
         return node;
     }
-
     private String formatValue(Value v) {
         if (v == null) return "null";
         if (v instanceof StringReference) return "\"" + ((StringReference) v).value() + "\"";
@@ -201,13 +172,11 @@ public class VariablesPanel extends JPanel {
         }
         return v.toString();
     }
-
     private void expandAllNodes() {
         for (int i = 0; i < variablesTree.getRowCount(); i++) {
             variablesTree.expandRow(i);
         }
     }
-
     public void clear() {
         SwingUtilities.invokeLater(() -> {
             rootNode.removeAllChildren();

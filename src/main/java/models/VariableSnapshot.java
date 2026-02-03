@@ -1,10 +1,8 @@
 package models;
-
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-
 public class VariableSnapshot {
     private final String name;
     private final String type;
@@ -14,7 +12,6 @@ public class VariableSnapshot {
     private final int frameIndex;
     private final int slot;
     private final List<VariableSnapshot> children;
-
     public VariableSnapshot(String name, String type, String value,
                            String methodName, String className, int frameIndex, int slot) {
         this.name = name;
@@ -26,23 +23,18 @@ public class VariableSnapshot {
         this.slot = slot;
         this.children = new ArrayList<>();
     }
-
     public void addChild(VariableSnapshot child) {
         children.add(child);
     }
-
     public List<VariableSnapshot> getChildren() {
         return Collections.unmodifiableList(children);
     }
-
     public boolean hasChildren() {
         return !children.isEmpty();
     }
-
     public String getUniqueId() {
         return String.format("%s.%s#%d:%s@%d", className, methodName, frameIndex, name, slot);
     }
-
     public String getName() { return name; }
     public String getType() { return type; }
     public String getValue() { return value; }
@@ -50,7 +42,6 @@ public class VariableSnapshot {
     public String getClassName() { return className; }
     public int getFrameIndex() { return frameIndex; }
     public int getSlot() { return slot; }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -62,12 +53,10 @@ public class VariableSnapshot {
                Objects.equals(methodName, that.methodName) &&
                Objects.equals(className, that.className);
     }
-
     @Override
     public int hashCode() {
         return Objects.hash(name, methodName, className, frameIndex, slot);
     }
-
     @Override
     public String toString() {
         return String.format("%s (%s) = %s [%s.%s #%d]",

@@ -1,70 +1,45 @@
 package dbg;
-
 import com.sun.jdi.*;
 import com.sun.jdi.connect.*;
 import com.sun.jdi.event.*;
 import com.sun.jdi.request.*;
 import models.DebuggerState;
-
 import java.io.*;
 import java.util.*;
-
 public abstract class AbstractDebugger {
-
     protected Class<?> debugClass;
     protected VirtualMachine vm;
     protected DebuggerState state;
-
     protected volatile boolean isRunning = true;
     protected volatile boolean shouldContinue = false;
     protected final Object lock = new Object();
-
     public void attachTo(Class<?> debuggeeClass) {
         this.debugClass = debuggeeClass;
-
         try {
-            
             initializeUI();
-
             vm = connectAndLaunchVM();
             state = new DebuggerState(vm);
-
             onInfo("[START] Debugging " + debugClass.getSimpleName() + "...");
-
             captureTargetOutput();
             onBeforeStart();
             enableClassPrepareRequest();
             startDebuggerLoop();
-
         } catch (Exception e) {
             onError("Connection error: " + e.getMessage());
-            
         }
     }
-
     protected abstract void initializeUI();
-
     protected abstract void onBeforeStart();
-
     protected abstract void onInfo(String message);
-
     protected abstract void onError(String message);
-
     protected abstract void onOutput(String output);
-
     protected abstract void onVMDisconnect();
-
     protected abstract boolean onBreakpoint(Location loc, ThreadReference thread) throws Exception;
-
     protected abstract boolean onStep(Location loc, ThreadReference thread) throws Exception;
-
     protected boolean onMethodEntry(Location loc, ThreadReference thread) throws Exception {
-        // no default action
         return false;
     }
-
     protected abstract void onClassPrepare(ReferenceType refType);
-
     protected VirtualMachine connectAndLaunchVM() throws Exception {
         LaunchingConnector connector = Bootstrap.virtualMachineManager().defaultConnector();
         Map<String, Connector.Argument> args = connector.defaultArguments();
@@ -72,17 +47,14 @@ public abstract class AbstractDebugger {
         args.get("options").setValue("-cp " + System.getProperty("java.class.path"));
         return connector.launch(args);
     }
-
     protected void enableClassPrepareRequest() {
         ClassPrepareRequest r = vm.eventRequestManager().createClassPrepareRequest();
         r.addClassFilter(debugClass.getName());
         r.enable();
     }
-
     protected void captureTargetOutput() {
         Process process = vm.process();
         if (process == null) return;
-
         Thread outputThread = new Thread(() -> {
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(process.getInputStream()))) {
@@ -96,29 +68,24 @@ public abstract class AbstractDebugger {
                 }
             }
         }, "Output-Capture-Thread");
-
         outputThread.setDaemon(true);
         outputThread.start();
     }
-
     protected void startDebuggerLoop() throws Exception {
         while (isRunning) {
             EventSet eventSet = vm.eventQueue().remove();
             boolean shouldResume = true;
-
             for (Event event : eventSet) {
                 boolean needsWait = handleEvent(event);
                 if (needsWait) {
                     shouldResume = false;
                 }
             }
-
             if (shouldResume && isRunning) {
                 vm.resume();
             }
         }
     }
-
     protected boolean handleEvent(Event event) throws Exception {
         if (event instanceof VMDisconnectEvent) {
             onVMDisconnect();
@@ -141,7 +108,6 @@ public abstract class AbstractDebugger {
         }
         return false;
     }
-
     protected void waitForUserCommand() {
         synchronized (lock) {
             shouldContinue = false;
@@ -154,20 +120,17 @@ public abstract class AbstractDebugger {
             }
         }
     }
-
     protected void signalContinue() {
         synchronized (lock) {
             shouldContinue = true;
             lock.notifyAll();
         }
     }
-
     protected void resumeVM() {
         if (vm != null) {
             vm.resume();
         }
     }
-
     public void stop() {
         isRunning = false;
         if (vm != null) {
@@ -176,7 +139,6 @@ public abstract class AbstractDebugger {
             } catch (Exception ignored) {}
         }
     }
-
     protected void printProcessOutput() {
         try {
             Process process = vm.process();
@@ -192,7 +154,6 @@ public abstract class AbstractDebugger {
             onError("Error reading VM output: " + e.getMessage());
         }
     }
-
     public DebuggerState getState() { return state; }
     public VirtualMachine getVm() { return vm; }
     public Class<?> getDebugClass() { return debugClass; }

@@ -1,14 +1,10 @@
 package dbg;
-
 import java.util.ArrayList;
 import java.util.List;
-
 public class JDISimpleDebuggee {
-
     public static class Machin{
         public String truc;
     }
-
     public static void main(String[] args) {
         String description = "Simple power printer";
         System.out.println(description + " -- starting");
@@ -21,12 +17,10 @@ public class JDISimpleDebuggee {
         machins.add(new Machin());
         printPower(x, power);
     }
-
     public static double power(int x, int power) {
         double powerX = Math.pow(x, power);
         return powerX;
     }
-
     public static void printPower(int x, int power) {
         double powerX = power(x, power);
         System.out.println(powerX);

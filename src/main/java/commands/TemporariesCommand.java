@@ -1,8 +1,6 @@
 package commands;
-
 import models.DebugFrame;
 import models.DebuggerState;
-
 class TemporariesCommand implements Command {
     @Override
     public CommandResult execute(DebuggerState state) throws Exception {

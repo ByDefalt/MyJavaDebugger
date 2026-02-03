@@ -1,5 +1,4 @@
 package gui;
-
 import com.sun.jdi.*;
 import com.sun.jdi.request.*;
 import commands.*;
@@ -8,30 +7,23 @@ import io.GUILogger;
 import io.Logger;
 import managers.SnapshotRecorder;
 import models.ExecutionSnapshot;
-
 import javax.swing.*;
 import java.util.*;
-
 public class ScriptableDebuggerGUI extends AbstractDebugger
         implements DebuggerGUI.DebuggerController {
-
     private DebuggerGUI gui;
     private Logger log;
     private volatile boolean guiReady = false;
     private boolean recordingPhase = true;
-
     @Override
     protected void initializeUI() {
         SwingUtilities.invokeLater(() -> {
             gui = new DebuggerGUI();
             gui.setController(this);
             gui.setVisible(true);
-
             log = new GUILogger(gui::appendOutput, Logger.Level.DEBUG);
-
             guiReady = true;
         });
-
         while (!guiReady) {
             try {
                 Thread.sleep(50);
@@ -40,7 +32,6 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
             }
         }
     }
-
     @Override
     protected void onBeforeStart() {
         state.setRecordingMode(true);
@@ -50,29 +41,24 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
         }
         SwingUtilities.invokeLater(() -> gui.setControlsEnabled(false));
     }
-
     @Override
     protected void onInfo(String message) {
         if (log != null) {
             log.info(message);
         }
     }
-
     @Override
     protected void onError(String message) {
         if (log != null) {
             log.error(message);
         }
     }
-
     @Override
     protected void onOutput(String output) {
-        
         if (gui != null) {
             SwingUtilities.invokeLater(() -> gui.appendOutput(output));
         }
     }
-
     @Override
     protected void onVMDisconnect() {
         if (log != null) {
@@ -80,23 +66,19 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
             log.info("Recording complete! %d steps recorded.", count);
             log.info("Entering replay mode - use controls to navigate through execution.");
         }
-
         recordingPhase = false;
         state.setRecordingMode(false);
         state.setReplayMode(true);
         state.getExecutionHistory().goToStart();
-
         List<ExecutionSnapshot> snapshots = state.getExecutionHistory().getAllSnapshots();
         SwingUtilities.invokeLater(() -> {
             gui.setExecutionSnapshots(snapshots);
             gui.setControlsEnabled(true);
-
             if (!snapshots.isEmpty()) {
                 gui.updateFromSnapshot(snapshots.get(0));
             }
         });
     }
-
     @Override
     protected boolean onBreakpoint(Location loc, ThreadReference thread) throws Exception {
         if (recordingPhase) {
@@ -111,7 +93,6 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
             return true;
         }
     }
-
     @Override
     protected boolean onStep(Location loc, ThreadReference thread) throws Exception {
         if (recordingPhase) {
@@ -126,7 +107,6 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
             return true;
         }
     }
-
     private void createStepRequest(ThreadReference thread) {
         try {
             EventRequestManager erm = vm.eventRequestManager();
@@ -141,17 +121,14 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
         } catch (Exception e) {
         }
     }
-
     private void recordSnapshot(ThreadReference thread) {
         SnapshotRecorder recorder = new SnapshotRecorder(state);
         recorder.recordSnapshot(thread);
-
         int count = recorder.getStepCount();
         if (count % 10 == 0 && log != null) {
             log.debug("📊 Recording... %d steps", count);
         }
     }
-
     @Override
     protected void onClassPrepare(ReferenceType refType) {
         if (log != null) {
@@ -159,20 +136,17 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
         }
         setInitialBreakpoint();
     }
-
     private void setInitialBreakpoint() {
         if (log != null) {
             log.debug("Looking for class: %s", debugClass.getName());
             log.debug("All classes count: %d", vm.allClasses().size());
         }
-
         for (ReferenceType type : vm.allClasses()) {
             if (type.name().equals(debugClass.getName())) {
                 if (log != null) {
                     log.debug("Found class: %s", type.name());
                 }
                 try {
-                    // EN DUR TODO() A MODIFIER
                     for (int lineNum = 13; lineNum <= 15; lineNum++) {
                         List<Location> locs = type.locationsOfLine(lineNum);
                         if (!locs.isEmpty()) {
@@ -197,16 +171,12 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
             log.warn("Class not found in VM classes");
         }
     }
-
     private void updateUIAndWait(Location loc, ThreadReference thread) throws Exception {
         state.updateContext(thread);
-
         ExecutionSnapshot currentSnapshot = state.getExecutionHistory().getCurrentSnapshot();
-
         SwingUtilities.invokeLater(() -> {
             gui.updateDebuggerState(state, loc, thread);
             gui.setControlsEnabled(true);
-
             if (currentSnapshot != null) {
                 gui.getVariablesPanel().updateFromSnapshots(currentSnapshot.getVariablesForFrame(0));
             }
@@ -214,31 +184,26 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
         waitForUserCommand();
         resumeVM();
     }
-
     @Override
     public void onContinue() throws Exception {
         CommandResult result = new ContinueCommand().execute(state);
         handleCommandResult(result);
     }
-
     @Override
     public void onStepOver() throws Exception {
         CommandResult result = new StepOverCommand().execute(state);
         handleCommandResult(result);
     }
-
     @Override
     public void onStepInto() throws Exception {
         CommandResult result = new StepCommand().execute(state);
         handleCommandResult(result);
     }
-
     @Override
     public void onStepBack() throws Exception {
         CommandResult result = new BackCommand().execute(state);
         handleCommandResult(result);
     }
-
     private void handleCommandResult(CommandResult result) {
         if (state.isReplayMode()) {
             if (result.hasSnapshot()) {
@@ -256,13 +221,11 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
             signalContinue();
         }
     }
-
     @Override
     public void onStop() {
         stop();
         System.exit(0);
     }
-
     @Override
     public void onBreakpointToggle(String file, int line) throws Exception {
         String key = file + ":" + line;
@@ -279,7 +242,6 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
             }
         }
     }
-
     @Override
     public void onNavigateToStep(int snapshotIndex) {
         state.getExecutionHistory().goToStep(snapshotIndex);

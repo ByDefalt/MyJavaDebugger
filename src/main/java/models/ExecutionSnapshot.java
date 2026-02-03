@@ -1,8 +1,6 @@
 package models;
-
 import com.sun.jdi.*;
 import java.util.*;
-
 public class ExecutionSnapshot {
     private final int stepNumber;
     private final String sourceFile;
@@ -12,27 +10,21 @@ public class ExecutionSnapshot {
     private final List<StackFrameSnapshot> stackFrames;
     private final Map<String, String> localVariables;
     private final List<VariableSnapshot> variableSnapshots;
-
     public ExecutionSnapshot(int stepNumber, ThreadReference thread) throws IncompatibleThreadStateException, AbsentInformationException {
         this.stepNumber = stepNumber;
-
         StackFrame frame = thread.frame(0);
         Location location = frame.location();
-
         this.sourceFile = location.sourceName();
         this.lineNumber = location.lineNumber();
         this.methodName = location.method().name();
         this.className = location.declaringType().name();
-
         this.stackFrames = new ArrayList<>();
         this.variableSnapshots = new ArrayList<>();
-
         for (int i = 0; i < thread.frameCount(); i++) {
             StackFrame sf = thread.frame(i);
             stackFrames.add(new StackFrameSnapshot(sf, i));
             captureVariables(sf, i);
         }
-
         this.localVariables = new HashMap<>();
         try {
             Map<LocalVariable, Value> vars = frame.getValues(frame.visibleVariables());
@@ -42,16 +34,13 @@ public class ExecutionSnapshot {
                 localVariables.put(name, value);
             }
         } catch (AbsentInformationException e) {
-            
         }
     }
-
     private void captureVariables(StackFrame frame, int frameIndex) {
         try {
             Location loc = frame.location();
             String framClassName = loc.declaringType().name();
             String framMethodName = loc.method().name();
-
             List<LocalVariable> vars = frame.visibleVariables();
             for (int i = 0; i < vars.size(); i++) {
                 LocalVariable lv = vars.get(i);
@@ -71,21 +60,16 @@ public class ExecutionSnapshot {
         } catch (AbsentInformationException e) {
         }
     }
-
     private static final int MAX_DEPTH = 3;
     private static final int MAX_CHILDREN = 50;
-
     private VariableSnapshot createVariableSnapshot(String name, String type, Value value,
             String methodName, String className, int frameIndex, int slot, int depth) {
-
         VariableSnapshot vs = new VariableSnapshot(
             name, type, valueToString(value), methodName, className, frameIndex, slot
         );
-
         if (depth >= MAX_DEPTH || value == null) {
             return vs;
         }
-
         if (value instanceof ArrayReference) {
             ArrayReference array = (ArrayReference) value;
             int count = Math.min(array.length(), MAX_CHILDREN);
@@ -138,10 +122,8 @@ public class ExecutionSnapshot {
             } catch (Exception e) {
             }
         }
-
         return vs;
     }
-
     private String valueToString(Value value) {
         if (value == null) {
             return "null";
@@ -155,7 +137,6 @@ public class ExecutionSnapshot {
         }
         return value.toString();
     }
-
     public int getStepNumber() { return stepNumber; }
     public String getSourceFile() { return sourceFile; }
     public int getLineNumber() { return lineNumber; }
@@ -164,7 +145,6 @@ public class ExecutionSnapshot {
     public List<StackFrameSnapshot> getStackFrames() { return stackFrames; }
     public Map<String, String> getLocalVariables() { return localVariables; }
     public List<VariableSnapshot> getVariableSnapshots() { return variableSnapshots; }
-
     public List<VariableSnapshot> getVariablesForFrame(int frameIndex) {
         List<VariableSnapshot> result = new ArrayList<>();
         for (VariableSnapshot vs : variableSnapshots) {
@@ -174,7 +154,6 @@ public class ExecutionSnapshot {
         }
         return result;
     }
-
     public VariableSnapshot getVariableById(String uniqueId) {
         for (VariableSnapshot vs : variableSnapshots) {
             if (vs.getUniqueId().equals(uniqueId)) {
@@ -183,13 +162,11 @@ public class ExecutionSnapshot {
         }
         return null;
     }
-
     @Override
     public String toString() {
         return String.format("Step #%d: %s:%d - %s.%s() [%d frames]",
                 stepNumber, sourceFile, lineNumber, className, methodName, stackFrames.size());
     }
-
     public String toDetailedString() {
         StringBuilder sb = new StringBuilder();
         sb.append("=== Step #").append(stepNumber).append(" ===\n");
@@ -209,29 +186,31 @@ public class ExecutionSnapshot {
         }
         return sb.toString();
     }
-
     public static class StackFrameSnapshot {
         private final int frameIndex;
         private final String methodName;
         private final String className;
         private final String sourceFile;
         private final int lineNumber;
-
-        public StackFrameSnapshot(StackFrame frame, int index) throws AbsentInformationException {
+        public StackFrameSnapshot(StackFrame frame, int index) {
             this.frameIndex = index;
             Location loc = frame.location();
             this.methodName = loc.method().name();
             this.className = loc.declaringType().name();
-            this.sourceFile = loc.sourceName();
             this.lineNumber = loc.lineNumber();
+            String source;
+            try {
+                source = loc.sourceName();
+            } catch (AbsentInformationException e) {
+                source = "Unknown";
+            }
+            this.sourceFile = source;
         }
-
         @Override
         public String toString() {
             return String.format("#%d %s.%s() at %s:%d",
                     frameIndex, className, methodName, sourceFile, lineNumber);
         }
-
         public int getFrameIndex() { return frameIndex; }
         public String getMethodName() { return methodName; }
         public String getClassName() { return className; }
