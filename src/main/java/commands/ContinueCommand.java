@@ -8,9 +8,6 @@ import models.DebuggerState;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * Commande Continue - utilise le pattern Strategy pour déléguer selon le mode
- */
 public class ContinueCommand implements Command {
 
     private static final List<ExecutionStrategy> STRATEGIES = Arrays.asList(

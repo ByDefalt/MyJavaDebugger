@@ -1,9 +1,5 @@
 package io;
 
-/**
- * Logger pour la console (SRP - Single Responsibility)
- * Responsabilité : afficher les logs dans le terminal
- */
 public class ConsoleLogger implements Logger {
 
     private Level minLevel = Level.INFO;

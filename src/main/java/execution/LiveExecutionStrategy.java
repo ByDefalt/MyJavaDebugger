@@ -5,9 +5,6 @@ import com.sun.jdi.request.StepRequest;
 import commands.CommandResult;
 import models.DebuggerState;
 
-/**
- * Stratégie d'exécution pour le mode live (exécution réelle)
- */
 public class LiveExecutionStrategy implements ExecutionStrategy {
 
     @Override
@@ -42,13 +39,15 @@ public class LiveExecutionStrategy implements ExecutionStrategy {
     }
 
     @Override
+    public CommandResult stepBack(DebuggerState state) throws Exception {
+        return CommandResult.error("Step back is not available in live debugging mode.");
+    }
+
+    @Override
     public CommandResult continueExecution(DebuggerState state) throws Exception {
         return CommandResult.success("Continuing execution", null);
     }
 
-    /**
-     * Ajoute les filtres standard pour exclure les classes système
-     */
     private void addStandardFilters(StepRequest sr) {
         sr.addClassExclusionFilter("java.*");
         sr.addClassExclusionFilter("javax.*");

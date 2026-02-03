@@ -6,9 +6,6 @@ import gui.theme.ThemeManager;
 import javax.swing.*;
 import java.awt.*;
 
-/**
- * Bouton stylisé réutilisable (SRP - Single Responsibility)
- */
 public class StyledButton extends JButton {
 
     public enum ButtonType {

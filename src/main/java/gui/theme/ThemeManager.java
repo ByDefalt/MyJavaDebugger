@@ -1,9 +1,5 @@
 package gui.theme;
 
-/**
- * Gestionnaire de thème global (Singleton)
- * Permet de changer le thème de l'application dynamiquement
- */
 public class ThemeManager {
 
     private static ThemeManager instance;

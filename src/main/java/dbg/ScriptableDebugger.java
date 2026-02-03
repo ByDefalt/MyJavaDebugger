@@ -8,18 +8,11 @@ import models.*;
 
 import java.util.*;
 
-/**
- * Debugger scriptable en mode console
- *
- * Hérite de AbstractDebugger pour le code commun
- * Utilise InputReader et ResultPresenter pour l'I/O (DIP)
- */
 public class ScriptableDebugger extends AbstractDebugger {
 
     private CommandInterpreter interpreter;
     private boolean autoRecord;
 
-    // Injection de dépendances (DIP)
     private final InputReader inputReader;
     private final ResultPresenter presenter;
 
@@ -31,9 +24,6 @@ public class ScriptableDebugger extends AbstractDebugger {
         this(autoRecord, new ConsoleInputReader(), new ConsoleResultPresenter());
     }
 
-    /**
-     * Constructeur avec injection de dépendances complète
-     */
     public ScriptableDebugger(boolean autoRecord, InputReader inputReader, ResultPresenter presenter) {
         this.interpreter = new CommandInterpreter();
         this.autoRecord = autoRecord;
@@ -41,11 +31,9 @@ public class ScriptableDebugger extends AbstractDebugger {
         this.presenter = presenter;
     }
 
-    // ========== Implémentation des callbacks abstraits ==========
-
     @Override
     protected void initializeUI() {
-        // Console : rien à initialiser
+        
     }
 
     @Override
@@ -103,57 +91,53 @@ public class ScriptableDebugger extends AbstractDebugger {
     }
 
     @Override
-    protected void onBreakpoint(Location loc, ThreadReference thread) throws Exception {
+    protected boolean onBreakpoint(Location loc, ThreadReference thread) throws Exception {
         presenter.info("\n=== Breakpoint hit ===");
         presenter.info("Location: " + loc.sourceName() + ":" + loc.lineNumber());
         presenter.info("Method: " + loc.method().name());
 
         state.updateContext(thread);
         handleUserCommandLoop();
-        resumeVM();
+        return false;
     }
 
     @Override
     protected boolean onStep(Location loc, ThreadReference thread) throws Exception {
         if (state.isRecordingMode()) {
-            // Mode recording : enregistrer et continuer automatiquement
+            
             managers.SnapshotRecorder recorder = new managers.SnapshotRecorder(state);
             recorder.recordSnapshot(thread);
             if (recorder.shouldLogProgress()) {
                 presenter.info("... Recorded " + recorder.getStepCount() + " steps ...");
             }
 
-            // Créer un nouveau StepRequest pour continuer l'enregistrement
             createNextStepRequest(thread);
-            return false; // Pas d'attente de commande, continuer automatiquement
+            return false; 
         } else {
-            // Mode normal : afficher et attendre une commande
+            
             presenter.info("\nStepped to: " + loc.sourceName() + ":" + loc.lineNumber());
             state.updateContext(thread);
             handleUserCommandLoop();
-            return false; // handleUserCommandLoop gère l'attente, puis on resume
+            return false; 
         }
     }
 
     @Override
     protected boolean onMethodEntry(Location loc, ThreadReference thread) throws Exception {
         if (state.isRecordingMode()) {
-            // Mode recording : enregistrer le snapshot pour chaque entrée de méthode
+            
             managers.SnapshotRecorder recorder = new managers.SnapshotRecorder(state);
             recorder.recordSnapshot(thread);
             if (recorder.shouldLogProgress()) {
                 presenter.info("... Recorded " + recorder.getStepCount() + " method entries ...");
             }
-            // Créer un StepRequest pour capturer les lignes de cette méthode
+            
             createNextStepRequest(thread);
-            return false; // Continuer automatiquement
+            return false; 
         }
         return false;
     }
 
-    /**
-     * Crée un StepRequest pour le prochain step en mode recording
-     */
     private void createNextStepRequest(ThreadReference thread) {
         try {
             EventRequestManager erm = vm.eventRequestManager();
@@ -166,7 +150,7 @@ public class ScriptableDebugger extends AbstractDebugger {
             stepRequest.setSuspendPolicy(EventRequest.SUSPEND_EVENT_THREAD);
             stepRequest.enable();
         } catch (Exception e) {
-            // Ignorer - le programme est peut-être terminé
+            
         }
     }
 
@@ -175,18 +159,14 @@ public class ScriptableDebugger extends AbstractDebugger {
         presenter.info("Class loaded: " + debugClass.getName());
 
         if (state.isRecordingMode()) {
-            // Configurer le step automatique pour le recording
+            
             setupAutoRecording();
         }
     }
 
-    // ========== Méthodes spécifiques au mode console ==========
-
     private void setupAutoRecording() {
         EventRequestManager erm = vm.eventRequestManager();
 
-        // Utiliser MethodEntryRequest pour détecter l'entrée dans les méthodes
-        // Le StepRequest sera créé une fois qu'on aura un thread suspendu
         MethodEntryRequest methodEntryRequest = erm.createMethodEntryRequest();
         methodEntryRequest.addClassFilter(debugClass.getName());
         methodEntryRequest.setSuspendPolicy(EventRequest.SUSPEND_EVENT_THREAD);
@@ -194,9 +174,6 @@ public class ScriptableDebugger extends AbstractDebugger {
         presenter.info("MethodEntryRequest configured for auto-recording in " + debugClass.getName());
     }
 
-    /**
-     * Boucle de commandes utilisateur
-     */
     private void handleUserCommandLoop() {
         while (true) {
             String input = inputReader.readLine("\ndbg> ");
@@ -224,9 +201,6 @@ public class ScriptableDebugger extends AbstractDebugger {
         return cmd.equals("step") || cmd.equals("step-over") || cmd.equals("continue");
     }
 
-    /**
-     * Mode replay pour naviguer dans l'historique
-     */
     private void replayMode() {
         presenter.info("\n=== REPLAY MODE ===");
         presenter.info("Commands: step, step-over, continue, back, forward, history, stack, frame, quit");
@@ -253,4 +227,3 @@ public class ScriptableDebugger extends AbstractDebugger {
         }
     }
 }
-

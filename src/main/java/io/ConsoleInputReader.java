@@ -2,9 +2,6 @@ package io;
 
 import java.util.Scanner;
 
-/**
- * Implémentation console de InputReader
- */
 public class ConsoleInputReader implements InputReader {
 
     private final Scanner scanner;

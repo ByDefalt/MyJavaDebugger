@@ -15,6 +15,8 @@ public class JDISimpleDebuggee {
         int x = 40;
         List<Machin> machins = new ArrayList<>();
         machins.add(new Machin());
+        x = 12;
+         x = x + 5;
         int power = 2;
         printPower(x, power);
     }

@@ -6,9 +6,6 @@ import models.DebuggerState;
 
 import java.util.Optional;
 
-/**
- * Commande pour créer un breakpoint normal
- */
 public class BreakCommand implements Command {
 
     private final String fileName;
@@ -32,4 +29,3 @@ public class BreakCommand implements Command {
         return CommandResult.error("Could not set breakpoint at " + fileName + ":" + lineNumber);
     }
 }
-

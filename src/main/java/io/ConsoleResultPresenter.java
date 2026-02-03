@@ -6,10 +6,6 @@ import models.*;
 
 import java.util.List;
 
-/**
- * Implémentation console de ResultPresenter
- * Utilise ConsoleLogger pour le logging (composition)
- */
 public class ConsoleResultPresenter implements ResultPresenter {
 
     private final Logger logger;
@@ -58,9 +54,9 @@ public class ConsoleResultPresenter implements ResultPresenter {
         } else if (data instanceof Breakpoint) {
             logger.info("Breakpoint: " + data);
         } else if (data instanceof ExecutionHistory) {
-            // Ne rien afficher - déjà affiché dans le message
+            
         } else if (data instanceof ExecutionSnapshot) {
-            // Ne rien afficher - déjà affiché dans le message
+            
         } else {
             logger.info(data.toString());
         }

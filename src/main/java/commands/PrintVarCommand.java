@@ -1,6 +1,5 @@
 package commands;
 
-
 import com.sun.jdi.Field;
 import com.sun.jdi.ObjectReference;
 import com.sun.jdi.Value;
@@ -22,14 +21,12 @@ class PrintVarCommand implements Command {
             return CommandResult.error("No current frame");
         }
 
-        // Chercher dans les variables locales
         for (Variable v : frame.getTemporaries()) {
             if (v.getName().equals(varName)) {
                 return CommandResult.success(v);
             }
         }
 
-        // Chercher dans les variables d'instance
         ObjectReference receiver = frame.getReceiver();
         if (receiver != null) {
             for (Field field : receiver.referenceType().allFields()) {

@@ -9,10 +9,6 @@ import javax.swing.border.TitledBorder;
 import java.awt.*;
 import java.util.List;
 
-/**
- * Panel de la pile d'appels (SRP)
- * Responsabilité : afficher et gérer la navigation dans la call stack
- */
 public class CallStackPanel extends JPanel {
 
     private final JList<String> callStackList;
@@ -75,9 +71,6 @@ public class CallStackPanel extends JPanel {
         this.listener = listener;
     }
 
-    /**
-     * Met à jour la pile d'appels
-     */
     public void updateStack(List<DebugFrame> frames) {
         SwingUtilities.invokeLater(() -> {
             callStackModel.clear();
@@ -87,18 +80,12 @@ public class CallStackPanel extends JPanel {
         });
     }
 
-    /**
-     * Sélectionne un frame spécifique
-     */
     public void selectFrame(int index) {
         if (index >= 0 && index < callStackModel.getSize()) {
             callStackList.setSelectedIndex(index);
         }
     }
 
-    /**
-     * Retourne l'index sélectionné
-     */
     public int getSelectedIndex() {
         return callStackList.getSelectedIndex();
     }

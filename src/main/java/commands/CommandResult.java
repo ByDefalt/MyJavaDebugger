@@ -1,5 +1,7 @@
 package commands;
 
+import models.ExecutionSnapshot;
+
 public class CommandResult {
     private boolean success;
     private String message;
@@ -26,4 +28,15 @@ public class CommandResult {
     public boolean isSuccess() { return success; }
     public String getMessage() { return message; }
     public Object getData() { return data; }
+
+    public boolean hasSnapshot() {
+        return data instanceof ExecutionSnapshot;
+    }
+
+    public ExecutionSnapshot getSnapshot() {
+        if (data instanceof ExecutionSnapshot) {
+            return (ExecutionSnapshot) data;
+        }
+        return null;
+    }
 }

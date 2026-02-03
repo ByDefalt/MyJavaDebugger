@@ -12,10 +12,6 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/**
- * Panel d'affichage du code source avec coloration syntaxique (SRP)
- * Responsabilité : afficher le code source avec breakpoints et ligne courante
- */
 public class SourceCodePanel extends JPanel {
 
     private List<String> sourceLines;
@@ -29,7 +25,6 @@ public class SourceCodePanel extends JPanel {
     private final CodeDisplayPanel codePanel;
     private BreakpointListener breakpointListener;
 
-    // Keywords Java
     private static final Set<String> KEYWORDS = new HashSet<>(Arrays.asList(
             "public", "private", "protected", "class", "interface", "enum",
             "void", "static", "final", "abstract", "synchronized",
@@ -96,6 +91,16 @@ public class SourceCodePanel extends JPanel {
         codePanel.repaint();
     }
 
+    public void removeBreakpoint(int line) {
+        breakpoints.remove(line);
+        codePanel.repaint();
+    }
+
+    public void addBreakpoint(int line) {
+        breakpoints.add(line);
+        codePanel.repaint();
+    }
+
     public void setBreakpointListener(BreakpointListener listener) {
         this.breakpointListener = listener;
     }
@@ -104,9 +109,6 @@ public class SourceCodePanel extends JPanel {
         return Collections.unmodifiableSet(breakpoints);
     }
 
-    /**
-     * Panel interne pour le rendu du code
-     */
     private class CodeDisplayPanel extends JPanel {
 
         public CodeDisplayPanel() {
@@ -128,8 +130,7 @@ public class SourceCodePanel extends JPanel {
                     try {
                         breakpointListener.onBreakpointToggle(clickedLine);
                     } catch (Exception ex) {
-                        // Erreur lors du toggle du breakpoint - ignorée silencieusement
-                        // Le listener parent devrait gérer ses propres erreurs
+                        
                     }
                 }
             }
@@ -169,7 +170,6 @@ public class SourceCodePanel extends JPanel {
             int y = index * LINE_HEIGHT;
             int lineNum = index + 1;
 
-            // Highlight ligne courante
             if (lineNum == currentLine) {
                 g2.setColor(theme.getCurrentLineHighlight());
                 g2.fillRect(0, y, getWidth(), LINE_HEIGHT);
@@ -177,24 +177,21 @@ public class SourceCodePanel extends JPanel {
                 g2.fillRect(0, y, 3, LINE_HEIGHT);
             }
 
-            // Gutter (numéros de ligne)
             g2.setColor(theme.getLineNumberBackground());
             g2.fillRect(0, y, GUTTER_WIDTH, LINE_HEIGHT);
             g2.setColor(theme.getLineNumberForeground());
             g2.drawString(String.format("%3d", lineNum), 10, y + 16);
 
-            // Breakpoint
             if (breakpoints.contains(lineNum)) {
                 g2.setColor(theme.getBreakpointColor());
                 g2.fillOval(38, y + 5, 10, 10);
             }
 
-            // Code avec coloration syntaxique
             drawSyntaxHighlightedLine(g2, sourceLines.get(index), GUTTER_WIDTH + 15, y + 16);
         }
 
         private void drawSyntaxHighlightedLine(Graphics2D g2, String line, int x, int y) {
-            // Pattern pour tokenizer : commentaires, strings, mots, nombres, espaces, autres
+            
             Pattern pattern = Pattern.compile("//.*|\"[^\"]*\"|'[^']*'|\\b\\w+\\b|\\s+|.");
             Matcher matcher = pattern.matcher(line);
 
@@ -209,31 +206,31 @@ public class SourceCodePanel extends JPanel {
         }
 
         private Color getTokenColor(String token, String line, int tokenEnd) {
-            // Commentaires
+            
             if (token.startsWith("//")) {
                 return theme.getCodeComment();
             }
-            // Strings
+            
             if (token.startsWith("\"") || token.startsWith("'")) {
                 return theme.getCodeString();
             }
-            // Nombres
+            
             if (token.matches("\\d+(\\.\\d+)?")) {
                 return theme.getCodeNumber();
             }
-            // Keywords
+            
             if (KEYWORDS.contains(token)) {
                 return theme.getCodeKeyword();
             }
-            // Annotations
+            
             if (token.startsWith("@")) {
                 return theme.getCodeAnnotation();
             }
-            // Méthodes (mot suivi d'une parenthèse)
+            
             if (token.matches("\\w+") && tokenEnd < line.length() && line.charAt(tokenEnd) == '(') {
                 return theme.getCodeMethod();
             }
-            // Par défaut
+            
             return theme.getCodeDefault();
         }
     }

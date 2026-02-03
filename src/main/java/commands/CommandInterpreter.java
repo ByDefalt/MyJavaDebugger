@@ -2,10 +2,6 @@ package commands;
 
 import java.util.*;
 
-/**
- * Interpréteur de commandes refactoré selon OCP
- * Les commandes peuvent être enregistrées dynamiquement
- */
 public class CommandInterpreter {
 
     private final Map<String, CommandFactory> commandFactories;
@@ -36,7 +32,6 @@ public class CommandInterpreter {
         this.commandCategories = new HashMap<>();
         registerBuiltinCommands();
 
-        // Enregistrer la commande help qui nécessite une référence à l'interpréteur
         final CommandInterpreter self = this;
         registerCommand("help", args -> {
             if (args.length > 0) {
@@ -46,9 +41,6 @@ public class CommandInterpreter {
         }, "Show help: help [command]", CommandCategory.NAVIGATION);
     }
 
-    /**
-     * Enregistre une nouvelle commande (Open/Closed Principle)
-     */
     public void registerCommand(String name, CommandFactory factory,
             String description, CommandCategory category) {
         commandFactories.put(name, factory);
@@ -56,16 +48,13 @@ public class CommandInterpreter {
         commandCategories.put(name, category);
     }
 
-    /**
-     * Enregistre une commande simple sans arguments
-     */
     public void registerSimpleCommand(String name, Command command,
             String description, CommandCategory category) {
         registerCommand(name, args -> command, description, category);
     }
 
     private void registerBuiltinCommands() {
-        // Navigation
+        
         registerCommand("step", args -> new StepCommand(),
             "Step into next instruction", CommandCategory.NAVIGATION);
         registerCommand("step-over", args -> new StepOverCommand(),
@@ -73,7 +62,6 @@ public class CommandInterpreter {
         registerCommand("continue", args -> new ContinueCommand(),
             "Continue execution", CommandCategory.NAVIGATION);
 
-        // History navigation (replay mode)
         registerCommand("back", args -> new BackCommand(),
             "Go back one step in history", CommandCategory.HISTORY);
         registerCommand("forward", args -> new ForwardCommand(),
@@ -81,7 +69,6 @@ public class CommandInterpreter {
         registerCommand("history", args -> new HistoryCommand(),
             "Show execution history", CommandCategory.HISTORY);
 
-        // Inspection
         registerCommand("frame", args -> new FrameCommand(),
             "Show current frame", CommandCategory.INSPECTION);
         registerCommand("temporaries", args -> new TemporariesCommand(),
@@ -99,7 +86,6 @@ public class CommandInterpreter {
         registerCommand("arguments", args -> new ArgumentsCommand(),
             "Show method arguments", CommandCategory.INSPECTION);
 
-        // Variables
         registerCommand("print-var", args -> {
             if (args.length < 1) {
                 throw new IllegalArgumentException("print-var requires variable name");
@@ -107,7 +93,6 @@ public class CommandInterpreter {
             return new PrintVarCommand(args[0]);
         }, "Print variable value: print-var <name>", CommandCategory.VARIABLES);
 
-        // Breakpoints
         registerCommand("break", args -> {
             if (args.length < 2) {
                 throw new IllegalArgumentException("break requires fileName and lineNumber");
@@ -161,9 +146,6 @@ public class CommandInterpreter {
         return commandFactories.keySet();
     }
 
-    /**
-     * Retourne les commandes groupées par catégorie
-     */
     public Map<CommandCategory, List<String>> getCommandsByCategory() {
         Map<CommandCategory, List<String>> result = new EnumMap<>(CommandCategory.class);
 
@@ -178,16 +160,10 @@ public class CommandInterpreter {
         return result;
     }
 
-    /**
-     * Retourne l'aide pour une commande
-     */
     public String getHelp(String commandName) {
         return commandDescriptions.getOrDefault(commandName, "No description available");
     }
 
-    /**
-     * Retourne l'aide complète formatée
-     */
     public String getFullHelp() {
         StringBuilder sb = new StringBuilder();
         sb.append("Available commands:\n\n");
@@ -207,4 +183,3 @@ public class CommandInterpreter {
         return sb.toString();
     }
 }
-

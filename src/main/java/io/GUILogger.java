@@ -3,18 +3,11 @@ package io;
 import javax.swing.*;
 import java.util.function.Consumer;
 
-/**
- * Logger pour la GUI (SRP - Single Responsibility)
- * Responsabilité : afficher les logs dans un composant GUI
- */
 public class GUILogger implements Logger {
 
     private final Consumer<String> outputConsumer;
     private Level minLevel = Level.INFO;
 
-    /**
-     * @param outputConsumer Fonction qui reçoit le message formaté (ex: textArea::append)
-     */
     public GUILogger(Consumer<String> outputConsumer) {
         this.outputConsumer = outputConsumer;
     }
@@ -81,7 +74,6 @@ public class GUILogger implements Logger {
 
         String formatted = "[" + level.name() + "] " + message + "\n";
 
-        // Exécuter sur l'EDT pour la thread-safety Swing
         if (SwingUtilities.isEventDispatchThread()) {
             outputConsumer.accept(formatted);
         } else {

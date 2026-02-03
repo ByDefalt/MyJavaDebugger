@@ -7,10 +7,6 @@ import javax.swing.*;
 import javax.swing.border.TitledBorder;
 import java.awt.*;
 
-/**
- * Panel de console de sortie (SRP)
- * Responsabilité : afficher les messages de debug
- */
 public class OutputPanel extends JPanel {
 
     private final JTextArea outputArea;
@@ -33,7 +29,7 @@ public class OutputPanel extends JPanel {
         JTextArea area = new JTextArea();
         area.setEditable(false);
         area.setBackground(theme.getBackgroundPrimary());
-        area.setForeground(new Color(150, 250, 150)); // Vert console
+        area.setForeground(new Color(150, 250, 150)); 
         area.setFont(new Font("Consolas", Font.PLAIN, 12));
         area.setCaretColor(theme.getTextPrimary());
         return area;
@@ -48,9 +44,6 @@ public class OutputPanel extends JPanel {
         setBorder(border);
     }
 
-    /**
-     * Ajoute du texte à la console (thread-safe)
-     */
     public void appendOutput(String text) {
         SwingUtilities.invokeLater(() -> {
             outputArea.append(text);
@@ -58,9 +51,6 @@ public class OutputPanel extends JPanel {
         });
     }
 
-    /**
-     * Efface la console
-     */
     public void clear() {
         SwingUtilities.invokeLater(() -> outputArea.setText(""));
     }

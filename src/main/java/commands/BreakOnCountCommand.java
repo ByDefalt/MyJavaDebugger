@@ -6,9 +6,6 @@ import models.DebuggerState;
 
 import java.util.Optional;
 
-/**
- * Commande pour créer un breakpoint qui s'active après N passages
- */
 class BreakOnCountCommand implements Command {
 
     private final String fileName;
@@ -33,4 +30,3 @@ class BreakOnCountCommand implements Command {
         return CommandResult.error("Could not set breakpoint at " + fileName + ":" + lineNumber);
     }
 }
-

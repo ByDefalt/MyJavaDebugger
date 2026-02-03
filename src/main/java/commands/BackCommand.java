@@ -1,30 +1,28 @@
 package commands;
 
+import execution.ExecutionStrategy;
+import execution.LiveExecutionStrategy;
+import execution.ReplayExecutionStrategy;
 import models.DebuggerState;
-import models.ExecutionSnapshot;
 
-/**
- * Commande pour reculer d'un pas dans l'historique d'exécution
- */
+import java.util.Arrays;
+import java.util.List;
+
 public class BackCommand implements Command {
+
+    private static final List<ExecutionStrategy> STRATEGIES = Arrays.asList(
+            new ReplayExecutionStrategy(),
+            new LiveExecutionStrategy()
+    );
+
     @Override
-    public CommandResult execute(DebuggerState state) {
-        if (state.getExecutionHistory() == null || state.getExecutionHistory().isEmpty()) {
-            return CommandResult.error("No execution history available. Run in recording mode first.");
+    public CommandResult execute(DebuggerState state) throws Exception {
+        for (ExecutionStrategy strategy : STRATEGIES) {
+            if (strategy.isApplicable(state)) {
+                return strategy.stepBack(state);
+            }
         }
-
-        if (!state.isReplayMode()) {
-            return CommandResult.error("Back command only available in replay mode.");
-        }
-
-        if (!state.getExecutionHistory().hasPrevious()) {
-            return CommandResult.error("Already at the beginning of execution history.");
-        }
-
-        state.getExecutionHistory().back();
-        ExecutionSnapshot snapshot = state.getExecutionHistory().getCurrentSnapshot();
-
-        return new CommandResult(true, snapshot.toDetailedString(), snapshot);
+        return CommandResult.error("No applicable execution strategy found");
     }
 
 }

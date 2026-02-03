@@ -11,7 +11,6 @@ public class RecordingDebugger {
         log.info("This will execute the entire program in step-in mode and record all states.");
         log.info("After execution, you can navigate through the recorded execution history.");
 
-        // Créer le debugger en mode auto-record
         ScriptableDebugger debuggerInstance = new ScriptableDebugger(true);
         debuggerInstance.attachTo(JDISimpleDebuggee.class);
     }

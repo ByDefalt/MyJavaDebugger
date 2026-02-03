@@ -3,9 +3,6 @@ package commands;
 import models.DebuggerState;
 import models.ExecutionSnapshot;
 
-/**
- * Commande pour avancer d'un pas dans l'historique d'exécution
- */
 public class ForwardCommand implements Command {
     @Override
     public CommandResult execute(DebuggerState state) {

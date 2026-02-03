@@ -25,7 +25,7 @@ public class MethodInfo {
                 }
             }
         } catch (AbsentInformationException e) {
-            // Pas de debug info
+            
         }
     }
 

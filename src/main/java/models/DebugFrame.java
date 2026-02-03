@@ -11,12 +11,23 @@ public class DebugFrame {
     private List<Variable> temporaries;
     private ObjectReference receiver;
 
+    private String displayName;
+    private String sourceFile;
+    private int lineNumber;
+
     public DebugFrame(StackFrame frame) throws IncompatibleThreadStateException {
         this.frame = frame;
         this.location = frame.location();
         this.temporaries = new ArrayList<>();
         this.receiver = frame.thisObject();
         loadTemporaries();
+    }
+
+    public DebugFrame(String displayName, String sourceFile, int lineNumber) {
+        this.displayName = displayName;
+        this.sourceFile = sourceFile;
+        this.lineNumber = lineNumber;
+        this.temporaries = new ArrayList<>();
     }
 
     private void loadTemporaries() throws IncompatibleThreadStateException {
@@ -26,7 +37,7 @@ public class DebugFrame {
                 temporaries.add(new Variable(lv.name(), lv.typeName(), val));
             }
         } catch (AbsentInformationException e) {
-            // Pas de debug info disponible
+            
         }
     }
 
@@ -37,7 +48,14 @@ public class DebugFrame {
 
     @Override
     public String toString() {
-        return location.declaringType().name() + "." +
-                location.method().name() + "() ligne " + location.lineNumber();
+        if (location != null) {
+            return location.declaringType().name() + "." +
+                    location.method().name() + "() ligne " + location.lineNumber();
+        }
+        return displayName + " ligne " + lineNumber;
     }
+
+    public String getDisplayName() { return displayName; }
+    public String getSourceFile() { return sourceFile; }
+    public int getLineNumber() { return lineNumber; }
 }

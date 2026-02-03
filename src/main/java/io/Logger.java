@@ -1,10 +1,5 @@
 package io;
 
-/**
- * Interface pour le logging (DIP - Dependency Inversion Principle)
- *
- * Permet d'avoir plusieurs implémentations : console, GUI, fichier, etc.
- */
 public interface Logger {
 
     enum Level {

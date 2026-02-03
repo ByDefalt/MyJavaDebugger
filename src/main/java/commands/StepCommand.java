@@ -8,9 +8,6 @@ import models.DebuggerState;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * Commande Step - utilise le pattern Strategy pour déléguer selon le mode
- */
 public class StepCommand implements Command {
 
     private static final List<ExecutionStrategy> STRATEGIES = Arrays.asList(

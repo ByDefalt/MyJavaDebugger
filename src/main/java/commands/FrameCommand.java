@@ -7,7 +7,7 @@ import models.ExecutionSnapshot;
 class FrameCommand implements Command {
     @Override
     public CommandResult execute(DebuggerState state) throws Exception {
-        // En mode replay, utiliser le snapshot de l'historique
+        
         if (state.isReplayMode() && state.getExecutionHistory() != null) {
             ExecutionSnapshot snapshot = state.getExecutionHistory().getCurrentSnapshot();
             if (snapshot == null) {
@@ -36,7 +36,6 @@ class FrameCommand implements Command {
             return CommandResult.success(sb.toString(), topFrame);
         }
 
-        // Mode normal : utiliser le contexte actuel
         DebugFrame frame = state.getContext().getCurrentFrame();
         if (frame == null) {
             return CommandResult.error("No current frame");

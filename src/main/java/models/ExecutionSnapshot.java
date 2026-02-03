@@ -3,9 +3,6 @@ package models;
 import com.sun.jdi.*;
 import java.util.*;
 
-/**
- * Représente un instantané complet de l'état d'exécution à un moment donné
- */
 public class ExecutionSnapshot {
     private final int stepNumber;
     private final String sourceFile;
@@ -14,6 +11,7 @@ public class ExecutionSnapshot {
     private final String className;
     private final List<StackFrameSnapshot> stackFrames;
     private final Map<String, String> localVariables;
+    private final List<VariableSnapshot> variableSnapshots;
     private final String receiverInfo;
     private final long timestamp;
 
@@ -29,13 +27,15 @@ public class ExecutionSnapshot {
         this.methodName = location.method().name();
         this.className = location.declaringType().name();
 
-        // Capturer la pile d'appels
         this.stackFrames = new ArrayList<>();
+        this.variableSnapshots = new ArrayList<>();
+
         for (int i = 0; i < thread.frameCount(); i++) {
-            stackFrames.add(new StackFrameSnapshot(thread.frame(i), i));
+            StackFrame sf = thread.frame(i);
+            stackFrames.add(new StackFrameSnapshot(sf, i));
+            captureVariables(sf, i);
         }
 
-        // Capturer les variables locales
         this.localVariables = new HashMap<>();
         try {
             Map<LocalVariable, Value> vars = frame.getValues(frame.visibleVariables());
@@ -45,15 +45,39 @@ public class ExecutionSnapshot {
                 localVariables.put(name, value);
             }
         } catch (AbsentInformationException e) {
-            // Pas d'informations de variables disponibles
+            
         }
 
-        // Capturer le receiver (this)
         ObjectReference thisObj = frame.thisObject();
         if (thisObj != null) {
             this.receiverInfo = thisObj.referenceType().name() + "@" + thisObj.uniqueID();
         } else {
             this.receiverInfo = "static context";
+        }
+    }
+
+    private void captureVariables(StackFrame frame, int frameIndex) {
+        try {
+            Location loc = frame.location();
+            String framClassName = loc.declaringType().name();
+            String framMethodName = loc.method().name();
+
+            List<LocalVariable> vars = frame.visibleVariables();
+            for (int i = 0; i < vars.size(); i++) {
+                LocalVariable lv = vars.get(i);
+                Value val = frame.getValue(lv);
+                VariableSnapshot vs = new VariableSnapshot(
+                    lv.name(),
+                    lv.typeName(),
+                    valueToString(val),
+                    framMethodName,
+                    framClassName,
+                    frameIndex,
+                    i
+                );
+                variableSnapshots.add(vs);
+            }
+        } catch (AbsentInformationException e) {
         }
     }
 
@@ -78,8 +102,28 @@ public class ExecutionSnapshot {
     public String getClassName() { return className; }
     public List<StackFrameSnapshot> getStackFrames() { return stackFrames; }
     public Map<String, String> getLocalVariables() { return localVariables; }
+    public List<VariableSnapshot> getVariableSnapshots() { return variableSnapshots; }
     public String getReceiverInfo() { return receiverInfo; }
     public long getTimestamp() { return timestamp; }
+
+    public List<VariableSnapshot> getVariablesForFrame(int frameIndex) {
+        List<VariableSnapshot> result = new ArrayList<>();
+        for (VariableSnapshot vs : variableSnapshots) {
+            if (vs.getFrameIndex() == frameIndex) {
+                result.add(vs);
+            }
+        }
+        return result;
+    }
+
+    public VariableSnapshot getVariableById(String uniqueId) {
+        for (VariableSnapshot vs : variableSnapshots) {
+            if (vs.getUniqueId().equals(uniqueId)) {
+                return vs;
+            }
+        }
+        return null;
+    }
 
     @Override
     public String toString() {
@@ -108,9 +152,6 @@ public class ExecutionSnapshot {
         return sb.toString();
     }
 
-    /**
-     * Instantané d'une frame de la pile d'appels
-     */
     public static class StackFrameSnapshot {
         private final int frameIndex;
         private final String methodName;

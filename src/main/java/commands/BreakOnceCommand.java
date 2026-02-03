@@ -6,9 +6,6 @@ import models.DebuggerState;
 
 import java.util.Optional;
 
-/**
- * Commande pour créer un breakpoint one-shot (s'arrête une seule fois)
- */
 class BreakOnceCommand implements Command {
 
     private final String fileName;

@@ -1,6 +1,5 @@
 package commands;
 
-
 import com.sun.jdi.Method;
 import com.sun.jdi.ReferenceType;
 import com.sun.jdi.request.MethodEntryRequest;
@@ -18,7 +17,6 @@ class BreakBeforeMethodCallCommand implements Command {
         MethodEntryRequest req = state.getVm().eventRequestManager()
                 .createMethodEntryRequest();
 
-        // Filtrer par nom de méthode si possible
         for (ReferenceType type : state.getVm().allClasses()) {
             for (Method m : type.methods()) {
                 if (m.name().equals(methodName)) {

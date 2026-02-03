@@ -6,9 +6,6 @@ import models.DebuggerState;
 import models.ExecutionHistory;
 import models.ExecutionSnapshot;
 
-/**
- * Stratégie d'exécution pour le mode replay (navigation dans l'historique)
- */
 public class ReplayExecutionStrategy implements ExecutionStrategy {
 
     @Override
@@ -40,7 +37,6 @@ public class ReplayExecutionStrategy implements ExecutionStrategy {
 
         int currentDepth = current.getStackFrames().size();
 
-        // Chercher le prochain état avec une profondeur <= actuelle
         while (history.hasNext()) {
             history.forward();
             ExecutionSnapshot next = history.getCurrentSnapshot();
@@ -49,10 +45,36 @@ public class ReplayExecutionStrategy implements ExecutionStrategy {
             }
         }
 
-        // Si on atteint la fin, rester sur le dernier état
         ExecutionSnapshot last = history.getCurrentSnapshot();
         return new CommandResult(true,
             "Reached end of execution\n" + last.toDetailedString(), last);
+    }
+
+    public CommandResult stepBack(DebuggerState state) throws Exception {
+        ExecutionHistory history = state.getExecutionHistory();
+        ExecutionSnapshot current = history.getCurrentSnapshot();
+
+        if (current == null) {
+            return CommandResult.error("No current execution state.");
+        }
+
+        if (!history.hasPrevious()) {
+            return CommandResult.error("Already at the beginning of execution history.");
+        }
+
+        int currentDepth = current.getStackFrames().size();
+
+        while (history.hasPrevious()) {
+            history.back();
+            ExecutionSnapshot prev = history.getCurrentSnapshot();
+            if (prev.getStackFrames().size() <= currentDepth) {
+                return new CommandResult(true, prev.toDetailedString(), prev);
+            }
+        }
+
+        ExecutionSnapshot first = history.getCurrentSnapshot();
+        return new CommandResult(true,
+            "Reached beginning of execution\n" + first.toDetailedString(), first);
     }
 
     @Override
@@ -64,7 +86,6 @@ public class ReplayExecutionStrategy implements ExecutionStrategy {
             return CommandResult.error("No current execution state.");
         }
 
-        // Chercher le prochain breakpoint dans l'historique
         while (history.hasNext()) {
             history.forward();
             ExecutionSnapshot next = history.getCurrentSnapshot();
@@ -80,20 +101,15 @@ public class ReplayExecutionStrategy implements ExecutionStrategy {
             }
         }
 
-        // Si pas de breakpoint trouvé, aller à la fin
         ExecutionSnapshot last = history.getCurrentSnapshot();
         return new CommandResult(true,
             "Reached end of execution (no breakpoint hit)\n" + last.toDetailedString(), last);
     }
 
-    /**
-     * Cherche un breakpoint correspondant au snapshot
-     */
     private Breakpoint findMatchingBreakpoint(DebuggerState state, ExecutionSnapshot snapshot) {
         String sourceFile = snapshot.getSourceFile();
         int lineNum = snapshot.getLineNumber();
 
-        // Créer les clés possibles
         String keyWithExtension = sourceFile + ":" + lineNum;
         String keyWithoutExtension = sourceFile.replace(".java", "") + ":" + lineNum;
 
