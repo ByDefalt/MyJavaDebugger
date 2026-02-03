@@ -36,12 +36,13 @@ public class VariablesPanel extends JPanel {
         this.rootNode = new DefaultMutableTreeNode("Variables");
         this.treeModel = new DefaultTreeModel(rootNode);
         setLayout(new BorderLayout());
-        setBackground(theme.getBackgroundSecondary());
+        setBackground(theme.getBackgroundPrimary());
         variablesTree = createTree();
         JScrollPane scrollPane = new JScrollPane(variablesTree);
         scrollPane.setBorder(null);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
         add(scrollPane, BorderLayout.CENTER);
-        applyTitledBorder("VARIABLES");
+        applyTitledBorder("Variables");
     }
     public void setSelectionListener(VariableSelectionListener listener) {
         this.selectionListener = listener;
@@ -49,17 +50,19 @@ public class VariablesPanel extends JPanel {
     private JTree createTree() {
         JTree tree = new JTree(treeModel);
         tree.setBackground(theme.getBackgroundPrimary());
-        tree.setForeground(theme.getTextSecondary());
+        tree.setForeground(theme.getTextPrimary());
         tree.setFont(theme.getUIFont());
+        tree.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
         tree.setCellRenderer(new DefaultTreeCellRenderer() {
             @Override
             public Component getTreeCellRendererComponent(JTree tree, Object value,
                     boolean sel, boolean exp, boolean leaf, int row, boolean hasFocus) {
                 super.getTreeCellRendererComponent(tree, value, sel, exp, leaf, row, hasFocus);
                 setBackgroundNonSelectionColor(theme.getBackgroundPrimary());
-                setTextNonSelectionColor(theme.getTextSecondary());
+                setTextNonSelectionColor(theme.getTextPrimary());
                 setBackgroundSelectionColor(theme.getAccentPrimary());
-                setTextSelectionColor(Color.WHITE);
+                setTextSelectionColor(theme.getTextPrimary());
+                setBorderSelectionColor(null);
                 return this;
             }
         });
@@ -82,10 +85,13 @@ public class VariablesPanel extends JPanel {
     }
     private void applyTitledBorder(String title) {
         TitledBorder border = BorderFactory.createTitledBorder(
-                BorderFactory.createMatteBorder(1, 0, 0, 0, theme.getBorderColor()),
+                BorderFactory.createCompoundBorder(
+                    BorderFactory.createMatteBorder(1, 0, 0, 0, theme.getBorderColor()),
+                    BorderFactory.createEmptyBorder(4, 8, 4, 8)
+                ),
                 title);
         border.setTitleColor(theme.getTextMuted());
-        border.setTitleFont(theme.getSmallFont());
+        border.setTitleFont(theme.getUIFontBold());
         setBorder(border);
     }
     public void updateVariables(java.util.List<models.Variable> variables) {

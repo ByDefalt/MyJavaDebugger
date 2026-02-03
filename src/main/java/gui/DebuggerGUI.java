@@ -25,6 +25,7 @@ public class DebuggerGUI extends JFrame {
     private final CallStackPanel callStackPanel;
     private final VariablesPanel variablesPanel;
     private final OutputPanel outputPanel;
+    private final OutputPanel debugLogPanel;
     private final VariableHistoryPanel variableHistoryPanel;
     private final MethodCallsPanel methodCallsPanel;
     private DebuggerState state;
@@ -50,7 +51,8 @@ public class DebuggerGUI extends JFrame {
         this.sourceCodePanel = new SourceCodePanel();
         this.callStackPanel = new CallStackPanel();
         this.variablesPanel = new VariablesPanel();
-        this.outputPanel = new OutputPanel();
+        this.outputPanel = new OutputPanel("Program Output");
+        this.debugLogPanel = new OutputPanel("Debugger Log");
         this.variableHistoryPanel = new VariableHistoryPanel();
         this.methodCallsPanel = new MethodCallsPanel();
         initFrame();
@@ -60,22 +62,29 @@ public class DebuggerGUI extends JFrame {
     private void initFrame() {
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            UIManager.put("Button.arc", 6);
+            UIManager.put("Component.arc", 6);
+            UIManager.put("TextComponent.arc", 6);
+            UIManager.put("ScrollBar.width", 12);
+            UIManager.put("ScrollBar.thumbArc", 6);
+            UIManager.put("ScrollBar.thumbInsets", new Insets(2, 2, 2, 2));
         } catch (Exception ignored) {}
         setSize(1400, 900);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        getContentPane().setBackground(theme.getBackgroundPrimary());
     }
     private void initLayout() {
         JPanel mainContainer = new JPanel(new BorderLayout(0, 0));
-        mainContainer.setBackground(theme.getBackgroundSecondary());
+        mainContainer.setBackground(theme.getBackgroundPrimary());
         JPanel variablesWithHistory = new JPanel(new BorderLayout());
-        variablesWithHistory.setBackground(theme.getBackgroundSecondary());
+        variablesWithHistory.setBackground(theme.getBackgroundPrimary());
         variablesWithHistory.add(variablesPanel, BorderLayout.CENTER);
         variablesWithHistory.add(variableHistoryPanel, BorderLayout.SOUTH);
         variableHistoryPanel.setPreferredSize(new Dimension(0, 200));
         variableHistoryPanel.setVisible(false);
         JPanel sourceWithMethodCalls = new JPanel(new BorderLayout());
-        sourceWithMethodCalls.setBackground(theme.getBackgroundSecondary());
+        sourceWithMethodCalls.setBackground(theme.getBackgroundPrimary());
         sourceWithMethodCalls.add(sourceCodePanel, BorderLayout.CENTER);
         methodCallsPanel.setPreferredSize(new Dimension(350, 0));
         methodCallsPanel.setVisible(false);
@@ -83,16 +92,30 @@ public class DebuggerGUI extends JFrame {
         JSplitPane rightSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
                 callStackPanel, variablesWithHistory);
         rightSplit.setDividerLocation(250);
+        rightSplit.setDividerSize(1);
         rightSplit.setBorder(null);
-        rightSplit.setBackground(theme.getBackgroundSecondary());
+        rightSplit.setBackground(theme.getBorderColor());
         JSplitPane mainSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
                 sourceWithMethodCalls, rightSplit);
         mainSplit.setDividerLocation(900);
+        mainSplit.setDividerSize(1);
         mainSplit.setBorder(null);
+        mainSplit.setBackground(theme.getBorderColor());
+
+        JSplitPane consoleSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT,
+                outputPanel, debugLogPanel);
+        consoleSplit.setDividerLocation(700);
+        consoleSplit.setDividerSize(1);
+        consoleSplit.setBorder(null);
+        consoleSplit.setBackground(theme.getBorderColor());
+        consoleSplit.setResizeWeight(0.5);
+
         JSplitPane bottomSplit = new JSplitPane(JSplitPane.VERTICAL_SPLIT,
-                mainSplit, outputPanel);
+                mainSplit, consoleSplit);
         bottomSplit.setDividerLocation(600);
+        bottomSplit.setDividerSize(1);
         bottomSplit.setBorder(null);
+        bottomSplit.setBackground(theme.getBorderColor());
         mainContainer.add(toolbar, BorderLayout.NORTH);
         mainContainer.add(bottomSplit, BorderLayout.CENTER);
         add(mainContainer);
@@ -162,7 +185,7 @@ public class DebuggerGUI extends JFrame {
             try {
                 action.execute();
             } catch (Exception e) {
-                appendOutput("Error: " + e.getMessage() + "\n");
+                appendDebugLog("Error: " + e.getMessage() + "\n");
             }
         }
     }
@@ -199,7 +222,7 @@ public class DebuggerGUI extends JFrame {
                 }
             }
         } catch (Exception e) {
-            appendOutput("Error navigating stack: " + e.getMessage() + "\n");
+            appendDebugLog("Error navigating stack: " + e.getMessage() + "\n");
         }
     }
     private void loadSourceFromFrame(DebugFrame frame) {
@@ -226,7 +249,7 @@ public class DebuggerGUI extends JFrame {
                     sourceCodePanel.setSourceLines(lines);
                     return;
                 } catch (Exception e) {
-                    appendOutput("[WARN] Error loading source: " + e.getMessage() + "\n");
+                    appendDebugLog("[WARN] Error loading source: " + e.getMessage() + "\n");
                 }
             }
         }
@@ -251,7 +274,7 @@ public class DebuggerGUI extends JFrame {
                             state.getContext().getCallStack().getFrames().get(0).getTemporaries());
                 }
             } catch (Exception e) {
-                appendOutput("Error: " + e.getMessage() + "\n");
+                appendDebugLog("Error: " + e.getMessage() + "\n");
             }
         }
     }
@@ -273,15 +296,28 @@ public class DebuggerGUI extends JFrame {
                 List<String> lines = Files.readAllLines(Paths.get(path));
                 sourceCodePanel.setSourceLines(lines);
                 sourceCodePanel.setCurrentLine(loc.lineNumber());
-                appendOutput("[LOADED] Source: " + path + "\n");
+                appendDebugLog("[LOADED] Source: " + path + "\n");
                 return;
             }
         }
-        appendOutput("[WARN] Source file not found: " + sourceName + " (tried " + possiblePaths.length + " paths)\n");
+        appendDebugLog("[WARN] Source file not found: " + sourceName + " (tried " + possiblePaths.length + " paths)\n");
     }
     public void appendOutput(String text) {
         outputPanel.appendOutput(text);
     }
+
+    public void appendDebugLog(String text) {
+        debugLogPanel.appendOutput(text);
+    }
+
+    public void clearOutput() {
+        outputPanel.clear();
+    }
+
+    public void clearDebugLog() {
+        debugLogPanel.clear();
+    }
+
     public void setControlsEnabled(boolean enabled) {
         toolbar.setControlsEnabled(enabled);
     }
@@ -301,14 +337,15 @@ public class DebuggerGUI extends JFrame {
                     callStackPanel.selectFrame(0);
                 }
                 variablesPanel.updateFromSnapshots(snapshot.getVariablesForFrame(0));
-                appendOutput(String.format("[TIME TRAVEL] Step #%d: %s:%d - %s.%s()\n",
+
+                appendDebugLog(String.format("[TIME TRAVEL] Step #%d: %s:%d - %s.%s()\n",
                         snapshot.getStepNumber(),
                         snapshot.getSourceFile(),
                         snapshot.getLineNumber(),
                         snapshot.getClassName(),
                         snapshot.getMethodName()));
             } catch (Exception e) {
-                appendOutput("[ERROR] Time travel failed: " + e.getMessage() + "\n");
+                appendDebugLog("[ERROR] Time travel failed: " + e.getMessage() + "\n");
             }
         });
     }
@@ -336,7 +373,7 @@ public class DebuggerGUI extends JFrame {
                     SwingUtilities.invokeLater(() -> sourceCodePanel.setCurrentLine(lineNumber));
                     return;
                 } catch (Exception e) {
-                    appendOutput("[WARN] Error loading source: " + e.getMessage() + "\n");
+                    appendDebugLog("[WARN] Error loading source: " + e.getMessage() + "\n");
                 }
             }
         }
@@ -358,14 +395,14 @@ public class DebuggerGUI extends JFrame {
     }
     private void showVariableHistory(String variableId, String variableName) {
         if (executionSnapshots.isEmpty()) {
-            appendOutput("[INFO] No execution history available. Run with recording enabled.\n");
+            appendDebugLog("[INFO] No execution history available. Run with recording enabled.\n");
             return;
         }
         variableHistoryPanel.showVariableHistory(variableId, variableName, executionSnapshots);
         variableHistoryPanel.setVisible(true);
         revalidate();
         repaint();
-        appendOutput("[HISTORY] Showing history for variable: " + variableName + "\n");
+        appendDebugLog("[HISTORY] Showing history for variable: " + variableName + "\n");
     }
     private void navigateToStep(int stepNumber) {
         for (int i = 0; i < executionSnapshots.size(); i++) {
@@ -375,11 +412,11 @@ public class DebuggerGUI extends JFrame {
                 if (controller != null) {
                     controller.onNavigateToStep(i);
                 }
-                appendOutput("[TIME TRAVEL] Navigated to step #" + stepNumber + "\n");
+                appendDebugLog("[TIME TRAVEL] Navigated to step #" + stepNumber + "\n");
                 return;
             }
         }
-        appendOutput("[ERROR] Step #" + stepNumber + " not found\n");
+        appendDebugLog("[ERROR] Step #" + stepNumber + " not found\n");
     }
     public VariableHistoryPanel getVariableHistoryPanel() {
         return variableHistoryPanel;
@@ -389,7 +426,7 @@ public class DebuggerGUI extends JFrame {
     }
     private void showMethodCallsPanel() {
         if (executionSnapshots.isEmpty()) {
-            appendOutput("[INFO] No execution history available. Run with recording enabled.\n");
+            appendDebugLog("[INFO] No execution history available. Run with recording enabled.\n");
             return;
         }
         methodCallsPanel.updateMethodCalls(executionSnapshots);
@@ -397,11 +434,11 @@ public class DebuggerGUI extends JFrame {
         methodCallsPanel.setVisible(true);
         revalidate();
         repaint();
-        appendOutput("[METHOD CALLS] Showing " + executionSnapshots.size() + " recorded method calls\n");
+        appendDebugLog("[METHOD CALLS] Showing " + executionSnapshots.size() + " recorded method calls\n");
     }
     private void showMethodCallsForMethod(String className, String methodName) {
         if (executionSnapshots.isEmpty()) {
-            appendOutput("[INFO] No execution history available. Run with recording enabled.\n");
+            appendDebugLog("[INFO] No execution history available. Run with recording enabled.\n");
             return;
         }
         methodCallsPanel.updateMethodCalls(executionSnapshots);
@@ -412,7 +449,7 @@ public class DebuggerGUI extends JFrame {
         methodCallsPanel.setVisible(true);
         revalidate();
         repaint();
-        appendOutput("[FIND CALLS] Searching calls to " + shortClassName + "." + methodName + "()\n");
+        appendDebugLog("[FIND CALLS] Searching calls to " + shortClassName + "." + methodName + "()\n");
     }
     public MethodCallsPanel getMethodCallsPanel() {
         return methodCallsPanel;

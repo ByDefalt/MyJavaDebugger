@@ -22,14 +22,17 @@ public class ToolbarPanel extends JPanel {
     }
     public ToolbarPanel() {
         Theme theme = ThemeManager.getInstance().getTheme();
-        setLayout(new FlowLayout(FlowLayout.LEFT, 15, 10));
-        setBackground(theme.getBackgroundTertiary());
-        setBorder(new MatteBorder(0, 0, 1, 0, theme.getBorderColor()));
-        continueButton = new StyledButton("▶ Continue", StyledButton.ButtonType.SUCCESS);
-        stepBackButton = new StyledButton("◀ Back", StyledButton.ButtonType.PRIMARY);
-        stepOverButton = new StyledButton("⏭ Step Over", StyledButton.ButtonType.PRIMARY);
+        setLayout(new FlowLayout(FlowLayout.LEFT, 8, 8));
+        setBackground(theme.getBackgroundSecondary());
+        setBorder(BorderFactory.createCompoundBorder(
+            new MatteBorder(0, 0, 1, 0, theme.getBorderColor()),
+            BorderFactory.createEmptyBorder(2, 8, 2, 8)
+        ));
+        continueButton = new StyledButton("▶ Resume", StyledButton.ButtonType.SUCCESS);
+        stepBackButton = new StyledButton("◀ Step Back", StyledButton.ButtonType.PRIMARY);
+        stepOverButton = new StyledButton("↓ Step Over", StyledButton.ButtonType.PRIMARY);
         stepIntoButton = new StyledButton("↓ Step Into", StyledButton.ButtonType.PRIMARY);
-        methodCallsButton = new StyledButton("📞 Method Calls", StyledButton.ButtonType.PRIMARY);
+        methodCallsButton = new StyledButton("📞 Calls", StyledButton.ButtonType.PRIMARY);
         stopButton = new StyledButton("⏹ Stop", StyledButton.ButtonType.DANGER);
         continueButton.addActionListener(e -> { if (listener != null) listener.onContinue(); });
         stepBackButton.addActionListener(e -> { if (listener != null) listener.onStepBack(); });
@@ -38,14 +41,23 @@ public class ToolbarPanel extends JPanel {
         methodCallsButton.addActionListener(e -> { if (listener != null) listener.onShowMethodCalls(); });
         stopButton.addActionListener(e -> { if (listener != null) listener.onStop(); });
         add(continueButton);
-        add(new JSeparator(JSeparator.VERTICAL));
+        addSeparator();
         add(stepBackButton);
         add(stepOverButton);
         add(stepIntoButton);
-        add(Box.createHorizontalStrut(20));
+        addSeparator();
         add(methodCallsButton);
-        add(Box.createHorizontalStrut(20));
+        add(Box.createHorizontalGlue());
         add(stopButton);
+    }
+
+    private void addSeparator() {
+        Theme theme = ThemeManager.getInstance().getTheme();
+        JSeparator separator = new JSeparator(JSeparator.VERTICAL);
+        separator.setPreferredSize(new Dimension(1, 24));
+        separator.setForeground(theme.getBorderColor());
+        separator.setBackground(theme.getBorderColor());
+        add(separator);
     }
     public void setToolbarListener(ToolbarListener listener) {
         this.listener = listener;

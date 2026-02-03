@@ -10,7 +10,13 @@ public class ExecutionSnapshot {
     private final List<StackFrameSnapshot> stackFrames;
     private final Map<String, String> localVariables;
     private final List<VariableSnapshot> variableSnapshots;
+    private final String outputText;
     public ExecutionSnapshot(int stepNumber, ThreadReference thread) throws IncompatibleThreadStateException, AbsentInformationException {
+        this(stepNumber, thread, "");
+    }
+
+    public ExecutionSnapshot(int stepNumber, ThreadReference thread, String outputText) throws IncompatibleThreadStateException, AbsentInformationException {
+        this.outputText = outputText;
         this.stepNumber = stepNumber;
         StackFrame frame = thread.frame(0);
         Location location = frame.location();
@@ -145,6 +151,7 @@ public class ExecutionSnapshot {
     public List<StackFrameSnapshot> getStackFrames() { return stackFrames; }
     public Map<String, String> getLocalVariables() { return localVariables; }
     public List<VariableSnapshot> getVariableSnapshots() { return variableSnapshots; }
+    public String getOutputText() { return outputText; }
     public List<VariableSnapshot> getVariablesForFrame(int frameIndex) {
         List<VariableSnapshot> result = new ArrayList<>();
         for (VariableSnapshot vs : variableSnapshots) {

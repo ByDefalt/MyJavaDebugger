@@ -143,15 +143,17 @@ public class SourceCodePanel extends JPanel {
                 g2.setColor(theme.getCurrentLineHighlight());
                 g2.fillRect(0, y, getWidth(), LINE_HEIGHT);
                 g2.setColor(theme.getCurrentLineMarker());
-                g2.fillRect(0, y, 3, LINE_HEIGHT);
+                g2.fillRect(0, y, 4, LINE_HEIGHT);
             }
             g2.setColor(theme.getLineNumberBackground());
             g2.fillRect(0, y, GUTTER_WIDTH, LINE_HEIGHT);
             g2.setColor(theme.getLineNumberForeground());
-            g2.drawString(String.format("%3d", lineNum), 10, y + 16);
+            String lineNumStr = String.format("%4d", lineNum);
+            g2.drawString(lineNumStr, 8, y + 16);
             if (breakpoints.contains(lineNum)) {
                 g2.setColor(theme.getBreakpointColor());
-                g2.fillOval(38, y + 5, 10, 10);
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.fillOval(40, y + 6, 10, 10);
             }
             drawSyntaxHighlightedLine(g2, sourceLines.get(index), GUTTER_WIDTH + 15, y + 16);
         }

@@ -14,6 +14,8 @@ public class DebuggerState {
     private ExecutionHistory executionHistory;
     private boolean replayMode;
     private boolean recordingMode;
+    private final StringBuilder outputBuffer = new StringBuilder();
+    private String lastCapturedOutput = "";
     public DebuggerState(VirtualMachine vm) {
         this.vm = vm;
         this.breakpoints = new HashMap<>();
@@ -37,4 +39,19 @@ public class DebuggerState {
     public void setReplayMode(boolean replayMode) { this.replayMode = replayMode; }
     public boolean isRecordingMode() { return recordingMode; }
     public void setRecordingMode(boolean recordingMode) { this.recordingMode = recordingMode; }
+
+    public void appendOutput(String text) {
+        outputBuffer.append(text);
+    }
+
+    public String getAndResetOutput() {
+        String output = outputBuffer.toString();
+        lastCapturedOutput = output;
+        outputBuffer.setLength(0);
+        return output;
+    }
+
+    public String getLastCapturedOutput() {
+        return lastCapturedOutput;
+    }
 }

@@ -10,7 +10,8 @@ public class SnapshotRecorder {
     public void recordSnapshot(ThreadReference thread) {
         try {
             int stepNumber = state.getExecutionHistory().size();
-            ExecutionSnapshot snapshot = new ExecutionSnapshot(stepNumber, thread);
+            String output = state.getAndResetOutput();
+            ExecutionSnapshot snapshot = new ExecutionSnapshot(stepNumber, thread, output);
             state.getExecutionHistory().addSnapshot(snapshot);
         } catch (Exception e) {
         }

@@ -31,7 +31,7 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
             gui = new DebuggerGUI();
             gui.setController(this);
             gui.setVisible(true);
-            log = new GUILogger(gui::appendOutput, Logger.Level.DEBUG);
+            log = new GUILogger(gui::appendDebugLog, Logger.Level.DEBUG);
             guiReady = true;
         });
         while (!guiReady) {
@@ -65,6 +65,9 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
     }
     @Override
     protected void onOutput(String output) {
+        if (recordingPhase && state != null) {
+            state.appendOutput(output);
+        }
         if (gui != null) {
             SwingUtilities.invokeLater(() -> gui.appendOutput(output));
         }
@@ -82,6 +85,7 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
         state.getExecutionHistory().goToStart();
         List<ExecutionSnapshot> snapshots = state.getExecutionHistory().getAllSnapshots();
         SwingUtilities.invokeLater(() -> {
+            gui.clearOutput();
             gui.setExecutionSnapshots(snapshots);
             gui.setControlsEnabled(true);
             if (!snapshots.isEmpty()) {
@@ -251,6 +255,7 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
         if (state.isReplayMode()) {
             if (result.hasSnapshot()) {
                 ExecutionSnapshot snapshot = result.getSnapshot();
+                rebuildConsoleUpToStep(snapshot.getStepNumber());
                 gui.updateFromSnapshot(snapshot);
                 if (log != null) {
                     log.debug("Step #%d: %s:%d",
@@ -258,10 +263,20 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
                 }
             }
             if (result.getMessage() != null && !result.getMessage().isEmpty()) {
-                gui.appendOutput(result.getMessage() + "\n");
+                gui.appendDebugLog(result.getMessage() + "\n");
             }
         } else {
             signalContinue();
+        }
+    }
+
+    private void rebuildConsoleUpToStep(int targetStep) {
+        gui.clearOutput();
+        List<ExecutionSnapshot> snapshots = state.getExecutionHistory().getAllSnapshots();
+        for (ExecutionSnapshot snap : snapshots) {
+            if (snap.getStepNumber() <= targetStep && snap.getOutputText() != null && !snap.getOutputText().isEmpty()) {
+                gui.appendOutput(snap.getOutputText());
+            }
         }
     }
     @Override

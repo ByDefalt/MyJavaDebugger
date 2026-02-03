@@ -26,22 +26,22 @@ public class CallStackPanel extends JPanel {
         this.theme = ThemeManager.getInstance().getTheme();
         this.callStackModel = new DefaultListModel<>();
         setLayout(new BorderLayout());
-        setBackground(theme.getBackgroundSecondary());
+        setBackground(theme.getBackgroundPrimary());
         callStackList = createList();
         JScrollPane scrollPane = new JScrollPane(callStackList);
         scrollPane.setBorder(null);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
         add(scrollPane, BorderLayout.CENTER);
-        applyTitledBorder("CALL STACK");
+        applyTitledBorder("Frames");
     }
     private JList<String> createList() {
         JList<String> list = new JList<>(callStackModel);
         list.setBackground(theme.getBackgroundPrimary());
-        list.setForeground(theme.getTextSecondary());
-        list.setSelectionBackground(new Color(theme.getAccentPrimary().getRed(),
-                theme.getAccentPrimary().getGreen(),
-                theme.getAccentPrimary().getBlue(), 150));
-        list.setSelectionForeground(Color.WHITE);
+        list.setForeground(theme.getTextPrimary());
+        list.setSelectionBackground(theme.getAccentPrimary());
+        list.setSelectionForeground(theme.getTextPrimary());
         list.setFont(theme.getUIFont());
+        list.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
         list.addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting() && listener != null) {
                 int selectedIndex = list.getSelectedIndex();
@@ -110,10 +110,13 @@ public class CallStackPanel extends JPanel {
     }
     private void applyTitledBorder(String title) {
         TitledBorder border = BorderFactory.createTitledBorder(
-                BorderFactory.createMatteBorder(1, 0, 0, 0, theme.getBorderColor()),
+                BorderFactory.createCompoundBorder(
+                    BorderFactory.createMatteBorder(1, 0, 0, 0, theme.getBorderColor()),
+                    BorderFactory.createEmptyBorder(4, 8, 4, 8)
+                ),
                 title);
         border.setTitleColor(theme.getTextMuted());
-        border.setTitleFont(theme.getSmallFont());
+        border.setTitleFont(theme.getUIFontBold());
         setBorder(border);
     }
     public void setCallStackListener(CallStackListener listener) {
