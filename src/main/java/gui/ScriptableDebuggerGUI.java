@@ -1,11 +1,9 @@
 package gui;
 import com.sun.jdi.*;
-import com.sun.jdi.request.*;
 import commands.*;
 import dbg.AbstractDebugger;
 import io.GUILogger;
 import io.Logger;
-import managers.SnapshotRecorder;
 import models.ExecutionSnapshot;
 import javax.swing.*;
 import java.util.*;
@@ -13,9 +11,13 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
         implements DebuggerGUI.DebuggerController {
     private DebuggerGUI gui;
     private Logger log;
-    private volatile boolean guiReady = false;
     private boolean recordingPhase = true;
     private final int initialBreakpointLine;
+    private final ConsoleRebuilder consoleRebuilder;
+    private BreakpointInitializer breakpointInitializer;
+    private RecordingEventHandler recordingEventHandler;
+    private ReplayEventHandler replayEventHandler;
+    private DebugCommandExecutor commandExecutor;
 
     public ScriptableDebuggerGUI() {
         this(-1);
@@ -23,29 +25,38 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
 
     public ScriptableDebuggerGUI(int initialBreakpointLine) {
         this.initialBreakpointLine = initialBreakpointLine;
+        this.consoleRebuilder = new ConsoleRebuilder();
     }
 
     @Override
     protected void initializeUI() {
-        SwingUtilities.invokeLater(() -> {
-            gui = new DebuggerGUI();
-            gui.setController(this);
-            gui.setVisible(true);
-            log = new GUILogger(gui::appendDebugLog, Logger.Level.DEBUG);
-            guiReady = true;
-        });
-        while (!guiReady) {
-            try {
-                Thread.sleep(50);
-            } catch (InterruptedException e) {
-                break;
-            }
+        try {
+            UIInitializer initializer = new UIInitializer();
+            UIInitializer.UIContext context = initializer.initializeAndWait(10);
+
+            this.gui = context.gui;
+            this.log = context.logger;
+
+            SwingUtilities.invokeLater(() -> {
+                gui.setController(this);
+                gui.setVisible(true);
+            });
+
+            breakpointInitializer = new BreakpointInitializer(log);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("UI initialization interrupted", e);
         }
     }
     @Override
     protected void onBeforeStart() {
         state.setRecordingMode(true);
         recordingPhase = true;
+
+        recordingEventHandler = new RecordingEventHandler(state, log, vm, debugClass);
+        replayEventHandler = new ReplayEventHandler(state, log, gui, v -> waitForUserCommand(), this::resumeVM);
+        commandExecutor = new DebugCommandExecutor(state);
+
         if (log != null) {
             log.info("📝 Recording execution... Please wait.");
         }
@@ -96,166 +107,58 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
     @Override
     protected boolean onBreakpoint(Location loc, ThreadReference thread) throws Exception {
         if (recordingPhase) {
-            recordSnapshot(thread);
-            createStepRequest(thread);
-            return false;
+            return recordingEventHandler.handleBreakpoint(loc, thread);
         } else {
-            if (log != null) {
-                log.info("Breakpoint at %s:%d", loc.sourceName(), loc.lineNumber());
-            }
-            updateUIAndWait(loc, thread);
-            return true;
+            return replayEventHandler.handleBreakpoint(loc, thread);
         }
     }
+
     @Override
     protected boolean onStep(Location loc, ThreadReference thread) throws Exception {
         if (recordingPhase) {
-            recordSnapshot(thread);
-            createStepRequest(thread);
-            return false;
+            return recordingEventHandler.handleStep(loc, thread);
         } else {
-            if (log != null) {
-                log.debug("Step at %s:%d", loc.sourceName(), loc.lineNumber());
-            }
-            updateUIAndWait(loc, thread);
-            return true;
+            return replayEventHandler.handleStep(loc, thread);
         }
     }
-    private void createStepRequest(ThreadReference thread) {
-        try {
-            EventRequestManager erm = vm.eventRequestManager();
-            StepRequest stepRequest = erm.createStepRequest(
-                thread,
-                StepRequest.STEP_LINE,
-                StepRequest.STEP_INTO
-            );
-            stepRequest.addClassFilter(debugClass.getName());
-            stepRequest.setSuspendPolicy(EventRequest.SUSPEND_EVENT_THREAD);
-            stepRequest.enable();
-        } catch (Exception e) {
-        }
-    }
-    private void recordSnapshot(ThreadReference thread) {
-        SnapshotRecorder recorder = new SnapshotRecorder(state);
-        recorder.recordSnapshot(thread);
-        int count = recorder.getStepCount();
-        if (count % 10 == 0 && log != null) {
-            log.debug("📊 Recording... %d steps", count);
-        }
-    }
+
     @Override
     protected void onClassPrepare(ReferenceType refType) {
         if (log != null) {
             log.debug("Class loaded: %s", refType.name());
         }
-        setInitialBreakpoint();
-    }
-    private void setInitialBreakpoint() {
-        if (log != null) {
-            log.debug("Looking for class: %s", debugClass.getName());
-            log.debug("All classes count: %d", vm.allClasses().size());
-        }
-        for (ReferenceType type : vm.allClasses()) {
-            if (type.name().equals(debugClass.getName())) {
-                if (log != null) {
-                    log.debug("Found class: %s", type.name());
-                }
-                try {
-                    if (initialBreakpointLine == -1) {
-                        Location mainLocation = findMainMethodFirstLine(type);
-                        if (mainLocation != null) {
-                            vm.eventRequestManager().createBreakpointRequest(mainLocation).enable();
-                            if (log != null) {
-                                log.info("Breakpoint set at first line of main: %d", mainLocation.lineNumber());
-                            }
-                            return;
-                        } else {
-                            if (log != null) {
-                                log.warn("Could not find main method or its first executable line");
-                            }
-                        }
-                    } else {
-                        List<Location> locs = type.locationsOfLine(initialBreakpointLine);
-                        if (!locs.isEmpty()) {
-                            vm.eventRequestManager().createBreakpointRequest(locs.get(0)).enable();
-                            if (log != null) {
-                                log.info("Breakpoint set at line %d", initialBreakpointLine);
-                            }
-                            return;
-                        } else {
-                            if (log != null) {
-                                log.warn("No executable code found at line %d", initialBreakpointLine);
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    if (log != null) {
-                        log.error("Error setting breakpoint", e);
-                    }
-                }
-            }
-        }
-        if (log != null) {
-            log.warn("Class not found in VM classes");
+
+        if (breakpointInitializer != null) {
+            breakpointInitializer.setInitialBreakpoint(vm, refType, debugClass, initialBreakpointLine);
         }
     }
 
-    private Location findMainMethodFirstLine(ReferenceType type) {
-        try {
-            List<Method> methods = type.methodsByName("main");
-            for (Method method : methods) {
-                if (method.isStatic() && method.signature().equals("([Ljava/lang/String;)V")) {
-                    List<Location> locations = method.allLineLocations();
-                    if (!locations.isEmpty()) {
-                        return locations.get(0);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            if (log != null) {
-                log.error("Error finding main method", e);
-            }
-        }
-        return null;
-    }
-    private void updateUIAndWait(Location loc, ThreadReference thread) throws Exception {
-        state.updateContext(thread);
-        ExecutionSnapshot currentSnapshot = state.getExecutionHistory().getCurrentSnapshot();
-        SwingUtilities.invokeLater(() -> {
-            gui.updateDebuggerState(state, loc, thread);
-            gui.setControlsEnabled(true);
-            if (currentSnapshot != null) {
-                gui.getVariablesPanel().updateFromSnapshots(currentSnapshot.getVariablesForFrame(0));
-            }
-        });
-        waitForUserCommand();
-        resumeVM();
-    }
     @Override
     public void onContinue() throws Exception {
-        CommandResult result = new ContinueCommand().execute(state);
+        CommandResult result = commandExecutor.executeContinue();
         handleCommandResult(result);
     }
     @Override
     public void onStepOver() throws Exception {
-        CommandResult result = new StepOverCommand().execute(state);
+        CommandResult result = commandExecutor.executeStepOver();
         handleCommandResult(result);
     }
     @Override
     public void onStepInto() throws Exception {
-        CommandResult result = new StepCommand().execute(state);
+        CommandResult result = commandExecutor.executeStepInto();
         handleCommandResult(result);
     }
     @Override
     public void onStepBack() throws Exception {
-        CommandResult result = new BackCommand().execute(state);
+        CommandResult result = commandExecutor.executeStepBack();
         handleCommandResult(result);
     }
     private void handleCommandResult(CommandResult result) {
         if (state.isReplayMode()) {
             if (result.hasSnapshot()) {
                 ExecutionSnapshot snapshot = result.getSnapshot();
-                rebuildConsoleUpToStep(snapshot.getStepNumber());
+                consoleRebuilder.rebuildUpToStep(gui, state.getExecutionHistory().getAllSnapshots(),
+                                                 snapshot.getStepNumber());
                 gui.updateFromSnapshot(snapshot);
                 if (log != null) {
                     log.debug("Step #%d: %s:%d",
@@ -270,15 +173,6 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
         }
     }
 
-    private void rebuildConsoleUpToStep(int targetStep) {
-        gui.clearOutput();
-        List<ExecutionSnapshot> snapshots = state.getExecutionHistory().getAllSnapshots();
-        for (ExecutionSnapshot snap : snapshots) {
-            if (snap.getStepNumber() <= targetStep && snap.getOutputText() != null && !snap.getOutputText().isEmpty()) {
-                gui.appendOutput(snap.getOutputText());
-            }
-        }
-    }
     @Override
     public void onStop() {
         stop();
@@ -294,7 +188,7 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
             }
             gui.getSourceCodePanel().removeBreakpoint(line);
         } else {
-            new BreakCommand(file, line).execute(state);
+            commandExecutor.executeBreakpointSet(file, line);
             if (log != null) {
                 log.info("Breakpoint set: %s", key);
             }
