@@ -15,6 +15,7 @@ public class JDISimpleDebuggee {
          x = x + 5;
         int power = 2;
         machins.add(new Machin());
+        truc(new Machin());
         printPower(x, power);
     }
     public static double power(int x, int power) {
@@ -24,5 +25,8 @@ public class JDISimpleDebuggee {
     public static void printPower(int x, int power) {
         double powerX = power(x, power);
         System.out.println(powerX);
+    }
+    public static void truc(Machin m){
+        m.truc = "Hello";
     }
 }

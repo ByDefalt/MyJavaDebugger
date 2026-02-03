@@ -15,6 +15,16 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
     private Logger log;
     private volatile boolean guiReady = false;
     private boolean recordingPhase = true;
+    private final int initialBreakpointLine;
+
+    public ScriptableDebuggerGUI() {
+        this(-1);
+    }
+
+    public ScriptableDebuggerGUI(int initialBreakpointLine) {
+        this.initialBreakpointLine = initialBreakpointLine;
+    }
+
     @Override
     protected void initializeUI() {
         SwingUtilities.invokeLater(() -> {
@@ -147,18 +157,32 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
                     log.debug("Found class: %s", type.name());
                 }
                 try {
-                    for (int lineNum = 13; lineNum <= 15; lineNum++) {
-                        List<Location> locs = type.locationsOfLine(lineNum);
+                    if (initialBreakpointLine == -1) {
+                        Location mainLocation = findMainMethodFirstLine(type);
+                        if (mainLocation != null) {
+                            vm.eventRequestManager().createBreakpointRequest(mainLocation).enable();
+                            if (log != null) {
+                                log.info("Breakpoint set at first line of main: %d", mainLocation.lineNumber());
+                            }
+                            return;
+                        } else {
+                            if (log != null) {
+                                log.warn("Could not find main method or its first executable line");
+                            }
+                        }
+                    } else {
+                        List<Location> locs = type.locationsOfLine(initialBreakpointLine);
                         if (!locs.isEmpty()) {
                             vm.eventRequestManager().createBreakpointRequest(locs.get(0)).enable();
                             if (log != null) {
-                                log.info("Breakpoint set at line %d", lineNum);
+                                log.info("Breakpoint set at line %d", initialBreakpointLine);
                             }
                             return;
+                        } else {
+                            if (log != null) {
+                                log.warn("No executable code found at line %d", initialBreakpointLine);
+                            }
                         }
-                    }
-                    if (log != null) {
-                        log.warn("No executable lines found in range 13-25");
                     }
                 } catch (Exception e) {
                     if (log != null) {
@@ -170,6 +194,25 @@ public class ScriptableDebuggerGUI extends AbstractDebugger
         if (log != null) {
             log.warn("Class not found in VM classes");
         }
+    }
+
+    private Location findMainMethodFirstLine(ReferenceType type) {
+        try {
+            List<Method> methods = type.methodsByName("main");
+            for (Method method : methods) {
+                if (method.isStatic() && method.signature().equals("([Ljava/lang/String;)V")) {
+                    List<Location> locations = method.allLineLocations();
+                    if (!locations.isEmpty()) {
+                        return locations.get(0);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            if (log != null) {
+                log.error("Error finding main method", e);
+            }
+        }
+        return null;
     }
     private void updateUIAndWait(Location loc, ThreadReference thread) throws Exception {
         state.updateContext(thread);

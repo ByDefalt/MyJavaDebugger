@@ -156,14 +156,30 @@ public class SourceCodePanel extends JPanel {
             drawSyntaxHighlightedLine(g2, sourceLines.get(index), GUTTER_WIDTH + 15, y + 16);
         }
         private void drawSyntaxHighlightedLine(Graphics2D g2, String line, int x, int y) {
+            FontMetrics fm = g2.getFontMetrics();
             Pattern pattern = Pattern.compile("\"[^\"]*\"|'[^']*'|//.*|\\b\\w+\\b|@\\w+|[^\\s]");
             Matcher matcher = pattern.matcher(line);
             int currentX = x;
+            int lastEnd = 0;
+
             while (matcher.find()) {
+                // Dessiner les espaces avant le token (pour préserver l'indentation)
+                if (matcher.start() > lastEnd) {
+                    String spaces = line.substring(lastEnd, matcher.start());
+                    currentX += fm.stringWidth(spaces);
+                }
+
                 String token = matcher.group();
                 g2.setColor(getTokenColor(token, line, matcher.end()));
                 g2.drawString(token, currentX, y);
-                currentX += g2.getFontMetrics().stringWidth(token);
+                currentX += fm.stringWidth(token);
+                lastEnd = matcher.end();
+            }
+
+            // Dessiner les espaces restants à la fin de la ligne
+            if (lastEnd < line.length()) {
+                String trailing = line.substring(lastEnd);
+                currentX += fm.stringWidth(trailing);
             }
         }
         private Color getTokenColor(String token, String line, int tokenEnd) {
