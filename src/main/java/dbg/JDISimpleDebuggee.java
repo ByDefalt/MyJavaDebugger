@@ -12,8 +12,9 @@ public class JDISimpleDebuggee {
         List<Machin> machins = new ArrayList<>();
         machins.add(new Machin());
         x = 12;
-         x = x + 5;
+        x = x + 5;
         int power = 2;
+        printPower(x, power);
         Machin c = new Machin();
         machins.add(new Machin());
         truc(new Machin());
