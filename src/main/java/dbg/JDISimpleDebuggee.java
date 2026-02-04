@@ -14,6 +14,7 @@ public class JDISimpleDebuggee {
         x = 12;
          x = x + 5;
         int power = 2;
+        Machin c = new Machin();
         machins.add(new Machin());
         truc(new Machin());
         printPower(x, power);
